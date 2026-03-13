@@ -1,0 +1,17 @@
+# env
+.env
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# frontend
+node_modules/
+dist/
+
+# project data
+video/
+
+# OS
+.DS_Store

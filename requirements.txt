@@ -1,0 +1,26 @@
+# ── Web Framework ──────────────────────────────
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.12
+
+# ── Vision & Numerics ──────────────────────────
+opencv-python-headless>=4.10.0.84
+numpy>=2.1.0
+Pillow>=10.4.0
+
+# ── PyTorch — install via install.bat / install.sh ──
+# Tidak dimasukkan di sini karena butuh --index-url khusus
+# CPU:  pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# CUDA: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+torch>=2.3.0
+torchvision>=0.18.0
+
+# ── CLIP — install via install.bat / install.sh ──
+# pip install git+https://github.com/openai/CLIP.git
+# Tidak dimasukkan di sini karena butuh git+ prefix yang sering gagal via -r
+
+# ── API Schema ─────────────────────────────────
+pydantic>=2.9.0
+
+# ── OpenAI — Stage 4 ───────────────────────────
+openai>=1.35.0

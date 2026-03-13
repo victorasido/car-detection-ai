@@ -1,0 +1,52 @@
+version: "3.9"
+
+# ── Vehicle Similarity — Docker Compose ───────────────────────
+#
+# Services:
+#   backend  → FastAPI + CLIP + GPT  (port 8000)
+#   frontend → React + nginx          (port 3000)
+#
+# Usage:
+#   docker-compose up --build          ← build & jalankan
+#   docker-compose up -d               ← background mode
+#   docker-compose down                ← stop semua
+#   docker-compose logs -f backend     ← lihat log backend
+
+services:
+
+  # ── Backend: FastAPI ──────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: vehiclesim-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Set API key via .env file atau environment variable
+      # Contoh: OPENAI_API_KEY=sk-xxxx docker-compose up
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      # Mount kode untuk hot-reload saat development
+      # Hapus volume ini untuk production build
+      - ./app:/app/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s   # Beri waktu CLIP untuk load model (~30 detik)
+
+  # ── Frontend: React + Nginx ───────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: vehiclesim-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

@@ -1,0 +1,38 @@
+# ── Backend Dockerfile ────────────────────────────────────────
+# Base: Python 3.11 slim (lebih ringan dari full image)
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system deps yang dibutuhkan OpenCV
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements dulu (layer caching — kalau requirements tidak berubah,
+# Docker tidak perlu install ulang saat rebuild)
+COPY requirements.txt .
+
+# Install PyTorch CPU (lebih kecil dari versi CUDA)
+RUN pip install --no-cache-dir torch torchvision \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Install CLIP dari GitHub
+RUN pip install --no-cache-dir git+https://github.com/openai/CLIP.git
+
+# Install dependency lainnya
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY app/ ./app/
+
+# Expose port
+EXPOSE 8000
+
+# Jalankan server
+# --host 0.0.0.0 → accessible dari luar container
+# --workers 1    → cukup untuk demo, naikkan untuk production
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
