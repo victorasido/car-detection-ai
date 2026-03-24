@@ -1,17 +1,17 @@
-# env
+#env
 .env
 
-# python
+#python
 .venv/
 __pycache__/
 *.pyc
 
-# frontend
+#frontend
 node_modules/
 dist/
 
-# project data
+#project data
 video/
 
-# OS
+#OS
 .DS_Store

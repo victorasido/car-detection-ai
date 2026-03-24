@@ -1,16 +1,22 @@
 version: "3.9"
 
-# ── Vehicle Similarity — Docker Compose ───────────────────────
+# ── Vehicle Similarity — Docker Compose Stage 5 ───────────────
 #
 # Services:
-#   backend  → FastAPI + CLIP + GPT  (port 8000)
-#   frontend → React + nginx          (port 3000)
+#   backend   → FastAPI + CLIP + GPT          (port 8000)
+#   frontend  → React + nginx                  (port 3000)
+#   minio     → Object storage (frames JPG)    (port 9000, console 9001)
+#   postgres  → Metadata + embedding vectors   (port 5432)
 #
 # Usage:
-#   docker-compose up --build          ← build & jalankan
+#   docker-compose up --build          ← build & jalankan semua
 #   docker-compose up -d               ← background mode
 #   docker-compose down                ← stop semua
 #   docker-compose logs -f backend     ← lihat log backend
+#
+# MinIO Console (UI):
+#   http://localhost:9001
+#   Login: minioadmin / minioadmin
 
 services:
 
@@ -23,20 +29,34 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # Set API key via .env file atau environment variable
-      # Contoh: OPENAI_API_KEY=sk-xxxx docker-compose up
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+
+      # MinIO config
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
+      - MINIO_BUCKET=${MINIO_BUCKET:-vehicle-dataset}
+
+      # PostgreSQL config
+      - POSTGRES_DSN=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/vehicledb
+
+      # Feature flag — set ke "false" untuk disable saving sementara
+      - DATASET_SAVING=${DATASET_SAVING:-true}
+
     volumes:
-      # Mount kode untuk hot-reload saat development
-      # Hapus volume ini untuk production build
       - ./app:/app/app
+    depends_on:
+      minio:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s   # Beri waktu CLIP untuk load model (~30 detik)
+      start_period: 60s
 
   # ── Frontend: React + Nginx ───────────────────────────────
   frontend:
@@ -50,3 +70,76 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+  # ── MinIO: Object Storage ─────────────────────────────────
+  # Simpan frame JPG tersharp dari setiap compare session
+  # S3-compatible → nanti tinggal ganti endpoint ke Cloudflare R2 / AWS S3
+  minio:
+    image: minio/minio:latest
+    container_name: vehiclesim-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   # S3 API endpoint
+      - "9001:9001"   # Web console (buka di browser)
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data   # data persist walau container restart
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── MinIO Init: Auto-create bucket ──────────────────────
+  # Jalankan setelah MinIO healthy untuk auto-create bucket
+  minio-init:
+    image: minio/mc:latest
+    container_name: vehiclesim-minio-init
+    environment:
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
+      - MINIO_BUCKET=${MINIO_BUCKET:-vehicle-dataset}
+    depends_on:
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./init-minio.sh:/init-minio.sh
+    entrypoint: /bin/bash
+    command:
+      - /init-minio.sh
+    restart: no
+
+  # ── PostgreSQL: Metadata + Embeddings ────────────────────
+  # Simpan similarity score, verdict, embedding vector (512-d), video info
+  postgres:
+    image: postgres:16-alpine
+    container_name: vehiclesim-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=vehicledb
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # data persist
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vehicledb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+
+# ── Volumes ───────────────────────────────────────────────────
+# Named volumes → data tidak hilang walau container di-recreate
+volumes:
+  minio_data:
+    driver: local
+  postgres_data:
+    driver: local
