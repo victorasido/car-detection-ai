@@ -25,8 +25,8 @@ CREATE TABLE IF NOT EXISTS comparisons (
     frame_scores          FLOAT[],
     frames_compared       INT,
 
-    frame_a_path          TEXT,
-    frame_b_path          TEXT,
+    frame_a_paths         TEXT[],
+    frame_b_paths         TEXT[],
 
     embedding_a           FLOAT[],
     embedding_b           FLOAT[],
@@ -79,8 +79,8 @@ def save_metadata(
     confidence:            str,
     frame_scores:          list,
     frames_compared:       int,
-    frame_a_path:          str,
-    frame_b_path:          str,
+    frame_a_paths:         list,
+    frame_b_paths:         list,
     embedding_a:           list,
     embedding_b:           list,
     embedding_model:       str,
@@ -103,7 +103,7 @@ def save_metadata(
                 INSERT INTO comparisons (
                     session_id, similarity_percentage, verdict, confidence,
                     frame_scores, frames_compared,
-                    frame_a_path, frame_b_path,
+                    frame_a_paths, frame_b_paths,
                     embedding_a, embedding_b,
                     embedding_model, explanation_model, device_used,
                     processing_time_ms, video_a_info, video_b_info
@@ -116,7 +116,7 @@ def save_metadata(
             """, (
                 session_id, similarity_percentage, verdict, confidence,
                 frame_scores, frames_compared,
-                frame_a_path, frame_b_path,
+                frame_a_paths, frame_b_paths,
                 embedding_a, embedding_b,
                 embedding_model, explanation_model, device_used,
                 processing_time_ms, Json(video_a_info), Json(video_b_info),

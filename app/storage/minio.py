@@ -1,7 +1,3 @@
-"""
-storage/minio.py — Simpan frame JPG ke MinIO
-"""
-
 import cv2
 import numpy as np
 import boto3

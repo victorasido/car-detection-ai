@@ -45,6 +45,7 @@ services:
 
     volumes:
       - ./app:/app/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     depends_on:
       minio:
         condition: service_healthy
@@ -60,12 +61,14 @@ services:
 
   # ── Frontend: React + Nginx ───────────────────────────────
   frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
+    image: node:20-alpine
     container_name: vehiclesim-frontend
     ports:
-      - "3000:80"
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+    working_dir: /app
+    command: ["sh", "-c", "npm install && npm run dev -- --host"]
     depends_on:
       backend:
         condition: service_healthy

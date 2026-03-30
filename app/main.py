@@ -43,7 +43,7 @@ from app.config import (
 from app.pipeline.extractor import extract_frames_evenly, select_sharpest_frames
 from app.pipeline.embedder import generate_embedding, DEVICE
 from app.pipeline.similarity import compare_frame_sets, get_verdict, get_confidence
-from app.pipeline.explainer import generate_explanation
+from app.pipeline.explainer import generate_explanation, frame_to_base64
 
 # ── Storage imports ─────────────────────────────
 from app.storage.postgres import init_db, close_db
@@ -115,6 +115,8 @@ class SimilarityResponse(BaseModel):
     stage: str
     note: str
     dataset_saved: bool
+    best_frame_a: str
+    best_frame_b: str
 
 
 # ─────────────────────────────────────────────
@@ -283,8 +285,8 @@ async def compare_vehicles(
             try:
                 asyncio.create_task(save_dataset_async(
                     session_id            = session_id,
-                    best_frame_a          = best_frame_a,
-                    best_frame_b          = best_frame_b,
+                    frames_a              = sharp_a,
+                    frames_b              = sharp_b,
                     embedding_a           = emb_a,
                     embedding_b           = emb_b,
                     avg_score             = avg_score,
@@ -320,6 +322,8 @@ async def compare_vehicles(
             stage                   = "Dataset-v1",
             note                    = "Stage 5: CLIP + GPT-4o-mini + dataset saving.",
             dataset_saved           = dataset_saved,
+            best_frame_a            = f"data:image/jpeg;base64,{frame_to_base64(best_frame_a)}",
+            best_frame_b            = f"data:image/jpeg;base64,{frame_to_base64(best_frame_b)}",
         )
 
     except HTTPException:

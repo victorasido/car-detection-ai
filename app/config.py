@@ -32,7 +32,7 @@ DATASET_SAVING_ENABLED = os.environ.get("DATASET_SAVING", "true").lower() == "tr
 # ── Security ───────────────────────────────────
 RATE_LIMIT             = os.environ.get("RATE_LIMIT", "30/minute")
 MAX_UPLOAD_SIZE_MB     = int(os.environ.get("MAX_UPLOAD_SIZE_MB", "100"))
-MAX_VIDEO_DURATION_SEC = int(os.environ.get("MAX_VIDEO_DURATION_SEC", "300"))
+MAX_VIDEO_DURATION_SEC = int(os.environ.get("MAX_VIDEO_DURATION_SEC", "600"))
 ALLOWED_ORIGINS        = os.environ.get(
     "ALLOWED_ORIGINS",
     "http://localhost:3000,http://localhost:8000"
