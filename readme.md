@@ -22,6 +22,8 @@ vehicle-similarity/
 │       ├── postgres.py          ← save metadata + embedding ke PostgreSQL
 │       └── dataset.py           ← async orchestrator saving
 ├── frontend/                    ← React UI
+│   └── src/
+│       └── components/          ← UI Components (DropZone, ResultCard, dsb)
 ├── test/
 │   └── test_api.py              ← unit test + integration test
 ├── .env                         ← API keys & credentials (jangan di-commit!)
@@ -62,6 +64,11 @@ EXTRACT_N_FRAMES=5           # frame tersebar merata (default: 5)
 TOP_K_FRAMES=3               # pilih K tersharp (default: 3)
 
 DATASET_SAVING=true          # set false untuk disable saving sementara
+
+# Security & Limits (Optional)
+RATE_LIMIT="30/minute"       # rate limiter API (default: 30/minute)
+MAX_UPLOAD_SIZE_MB=100       # max upload per video (default: 100)
+MAX_VIDEO_DURATION_SEC=600   # max durasi per video (default: 600)
 ```
 
 ### 2. Jalankan semua service
@@ -137,7 +144,9 @@ python test/test_api.py --integration
   "processing_time_ms": 1240.5,
   "dataset_saved": true,
   "stage": "Dataset-v1",
-  "note": "Stage 5: CLIP + GPT-4o-mini + auto dataset saving."
+  "note": "Stage 5: CLIP + GPT-4o-mini + auto dataset saving.",
+  "best_frame_a": "data:image/jpeg;base64,...",
+  "best_frame_b": "data:image/jpeg;base64,..."
 }
 ```
 
