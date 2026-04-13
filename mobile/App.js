@@ -13,13 +13,23 @@ import { StatusBar } from "expo-status-bar";
 import PrimaryButton from "./src/components/PrimaryButton";
 import PickerField from "./src/components/PickerField";
 import SectionCard from "./src/components/SectionCard";
-import { analyzeVehicle, API_BASE, compareVehicles, valuateVehicle } from "./src/lib/api";
+import LoginScreen from "./src/screens/LoginScreen";
+import { 
+  analyzeVehicle, 
+  API_BASE, 
+  compareVehicles, 
+  valuateVehicle, 
+  getMe, 
+  clearToken 
+} from "./src/lib/api";
 import { clearHistory, loadHistory, saveHistoryItem } from "./src/lib/history";
 import { theme } from "./src/theme";
 
 const TABS = ["damage", "value", "compare", "history", "account"];
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [activeTab, setActiveTab] = useState("damage");
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState([]);
@@ -40,8 +50,25 @@ export default function App() {
   const [compareResult, setCompareResult] = useState(null);
 
   useEffect(() => {
+    checkAuth();
     loadHistory().then(setHistory);
   }, []);
+
+  const checkAuth = async () => {
+    try {
+      const userData = await getMe();
+      setUser(userData);
+    } catch {
+      setUser(null);
+    } finally {
+      setAuthChecked(true);
+    }
+  };
+
+  const handleLogout = async () => {
+    await clearToken();
+    setUser(null);
+  };
 
   const runAction = async (kind, action) => {
     setBusy(true);
@@ -55,6 +82,9 @@ export default function App() {
       setHistory(updated);
       setActiveTab(kind);
     } catch (nextError) {
+      if (nextError.message.includes("401") || nextError.message.toLowerCase().includes("unauthorized")) {
+        setUser(null);
+      }
       setError(nextError.message || "Request failed");
     } finally {
       setBusy(false);
@@ -66,15 +96,27 @@ export default function App() {
     setHistory(cleared);
   };
 
+  if (!authChecked) {
+    return (
+      <View style={[styles.safe, styles.center]}>
+        <Text style={styles.title}>Loading...</Text>
+      </View>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen onLoginSuccess={checkAuth} />;
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.hero}>
           <Text style={styles.eyebrow}>Vehicle Inspect Mobile</Text>
-          <Text style={styles.title}>Phase 4 mobile shell for inspection, pricing, and field ops.</Text>
+          <Text style={styles.title}>Welcome, {user.username}</Text>
           <Text style={styles.subtitle}>
-            Backend target: {API_BASE}. Damage, value, compare, and history are wired to the APIs you already have.
+            Cloud sessions are active. All inspections are saved to your account.
           </Text>
         </View>
 
@@ -185,14 +227,15 @@ export default function App() {
 
         {activeTab === "account" ? (
           <SectionCard
-            title="Account and Auth"
-            subtitle="This screen is intentionally a Phase 4 placeholder. Mobile auth UX can start here once backend auth endpoints exist."
+            title="Account Settings"
+            subtitle="Your current profile and app session."
           >
             <View style={styles.accountBox}>
-              <Text style={styles.accountLine}>Status: auth backend not implemented yet.</Text>
-              <Text style={styles.accountLine}>Planned: sign in, report sync, dealership roles, cloud history.</Text>
-              <Text style={styles.accountLine}>Current mobile scaffold is ready to consume those APIs later.</Text>
+              <Text style={styles.accountLine}>User ID: {user.user_id}</Text>
+              <Text style={styles.accountLine}>Username: {user.username}</Text>
+              <Text style={styles.accountLine}>Backend: {API_BASE}</Text>
             </View>
+            <PrimaryButton label="Sign Out" tone="dark" onPress={handleLogout} />
           </SectionCard>
         ) : null}
       </ScrollView>
@@ -276,6 +319,10 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: theme.bg,
+  },
+  center: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   scroll: {
     padding: 18,
@@ -427,6 +474,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 16,
     gap: 8,
+    marginBottom: 16,
   },
   accountLine: {
     color: theme.ink,

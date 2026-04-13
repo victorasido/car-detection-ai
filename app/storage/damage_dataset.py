@@ -55,7 +55,8 @@ CREATE TABLE IF NOT EXISTS damage_analyses (
 
     analysis_model         TEXT,
     processing_time_ms     FLOAT,
-    media_info             JSONB
+    media_info             JSONB,
+    user_id                UUID -- NULL for legacy
 );
 
 CREATE INDEX IF NOT EXISTS idx_damage_session    ON damage_analyses(session_id);
@@ -89,6 +90,7 @@ def _save_damage_record(
     analysis_model:         str,
     processing_time_ms:     float,
     media_info:             dict,
+    user_id:                Optional[str] = None,
 ) -> bool:
     """Insert 1 record ke tabel damage_analyses."""
     try:
@@ -99,12 +101,12 @@ def _save_damage_record(
                     session_id, input_type, frame_path,
                     damages, overall_condition, condition_score,
                     repair_urgency, estimated_damage_count, analysis_notes,
-                    analysis_model, processing_time_ms, media_info
+                    analysis_model, processing_time_ms, media_info, user_id
                 ) VALUES (
                     %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
-                    %s, %s, %s
+                    %s, %s, %s, %s
                 )
             """, (
                 session_id,
@@ -119,6 +121,7 @@ def _save_damage_record(
                 analysis_model,
                 processing_time_ms,
                 Json(media_info),
+                user_id,
             ))
         conn.commit()
         conn.close()
@@ -136,6 +139,7 @@ async def save_damage_async(
     analysis_model:     str,
     processing_time_ms: float,
     media_info:         dict,
+    user_id:            Optional[str] = None,
 ) -> bool:
     """
     Save frame ke MinIO + metadata ke PostgreSQL secara async (non-blocking).
@@ -161,6 +165,7 @@ async def save_damage_async(
                 analysis_model     = analysis_model,
                 processing_time_ms = processing_time_ms,
                 media_info         = media_info,
+                user_id            = user_id,
             )
 
             if ok_db:

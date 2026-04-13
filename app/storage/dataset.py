@@ -29,6 +29,7 @@ async def save_dataset_async(
     processing_time_ms: float,
     video_a_info:       dict,
     video_b_info:       dict,
+    user_id:            str = None,
 ) -> bool:
     """
     Save dataset di background thread — non-blocking.
@@ -83,6 +84,7 @@ async def save_dataset_async(
                     processing_time_ms    = processing_time_ms,
                     video_a_info          = video_a_info,
                     video_b_info          = video_b_info,
+                    user_id               = user_id,
                 )
                 if ok_db:
                     print(f"[Dataset] Session {session_id} saved ({len(current_paths_a) + len(current_paths_b)} frames) ✓ (attempt {attempt})")

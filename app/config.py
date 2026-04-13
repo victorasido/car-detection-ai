@@ -37,3 +37,8 @@ ALLOWED_ORIGINS        = os.environ.get(
     "ALLOWED_ORIGINS",
     "http://localhost:3000,http://localhost:8000"
 ).split(",")
+
+# ── Auth ───────────────────────────────────────
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "super-secret-key-change-me")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 1 week

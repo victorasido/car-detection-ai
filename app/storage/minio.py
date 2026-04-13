@@ -44,3 +44,13 @@ def save_frame(frame: np.ndarray, object_key: str) -> bool:
     except Exception as e:
         print(f"[MinIO] Save failed ({object_key}): {e}")
         return False
+
+def get_frame_data(object_key: str) -> bytes:
+    """Ambil bytes gambar dari MinIO."""
+    try:
+        client = get_minio_client()
+        response = client.get_object(Bucket=MINIO_BUCKET, Key=object_key)
+        return response["Body"].read()
+    except Exception as e:
+        print(f"[MinIO] Read failed ({object_key}): {e}")
+        return None

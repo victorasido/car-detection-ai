@@ -8,27 +8,22 @@ opencv-python-headless>=4.10.0.84
 numpy>=2.1.0
 Pillow>=10.4.0
 
-# ── PyTorch — install via install.bat / install.sh ──
-# CPU:  pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-# CUDA: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# ── PyTorch ────────────────────────────────────
 torch>=2.3.0
 torchvision>=0.18.0
-
-# ── CLIP — install via install.bat / install.sh ──
-# pip install git+https://github.com/openai/CLIP.git
 
 # ── API Schema ─────────────────────────────────
 pydantic>=2.9.0
 
-# ── OpenAI — Stage 4 ───────────────────────────
+# ── OpenAI ─────────────────────────────────────
 openai>=1.35.0
 
-# ── Storage — Stage 5 ──────────────────────────
-boto3>=1.34.0           # MinIO / S3-compatible object storage
-psycopg2-binary>=2.9.9  # PostgreSQL driver
+# ── Storage ────────────────────────────────────
+boto3>=1.34.0           # MinIO
+psycopg2-binary>=2.9.9  # PostgreSQL
 
 # ── Security ───────────────────────────────────
-slowapi>=0.1.9          # Rate limiting for FastAPI
-
-# Optional for Phase 3 training
-# ultralytics>=8.3.0    # YOLOv8 training/inference
+slowapi>=0.1.9          # Rate limiting
+passlib[bcrypt]>=1.7.4  # Password hashing
+python-jose[cryptography]>=3.3.0  # JWT
+python-dotenv>=1.0.1

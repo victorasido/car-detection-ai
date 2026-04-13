@@ -12,7 +12,10 @@ from __future__ import annotations
 import json
 import random
 import shutil
+import psycopg2
+import boto3
 from pathlib import Path
+from app.config import POSTGRES_DSN, MINIO_BUCKET, MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY
 
 from app.pipeline.damage_analyzer import DAMAGE_TYPES
 
@@ -48,6 +51,65 @@ def build_review_manifest(records: list[dict], manifest_path: str | Path) -> Pat
             handle.write(json.dumps(item, ensure_ascii=True) + "\n")
 
     return manifest_file
+
+
+def export_from_db(output_dir: str | Path) -> dict:
+    """
+    Pulls reviewed annotations from PostgreSQL, downloads images from MinIO,
+    and builds a YOLO dataset.
+    """
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # 1. Connect to DB
+    conn = psycopg2.connect(POSTGRES_DSN)
+    cur = conn.cursor()
+    
+    # 2. Get reviewed annotations
+    cur.execute("""
+        SELECT a.bboxes, d.frame_path, d.media_info
+        FROM damage_annotations a
+        JOIN damage_analyses d ON a.analysis_id = d.id
+    """)
+    rows = cur.fetchall()
+    
+    # 3. Setup MinIO
+    s3 = boto3.client("s3", endpoint_url=MINIO_ENDPOINT, 
+                     aws_access_key_id=MINIO_ACCESS_KEY, 
+                     aws_secret_access_key=MINIO_SECRET_KEY)
+    
+    samples = []
+    for bboxes, frame_path, media_info in rows:
+        # Download image
+        local_img = output_path / "raw_images" / Path(frame_path).name
+        local_img.parent.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            s3.download_file(MINIO_BUCKET, frame_path, str(local_img))
+        except Exception as e:
+            print(f"Failed to download {frame_path}: {e}")
+            continue
+
+        res = media_info.get("resolution", "1280x720").split("x")
+        w, h = int(res[0]), int(res[1])
+        
+        samples.append({
+            "image_file": str(local_img),
+            "image_width": w,
+            "image_height": h,
+            "annotations": [{"class": b["class"], "bbox": [b["x1"], b["y1"], b["x2"], b["y2"]]} for b in bboxes],
+            "split": None
+        })
+
+    conn.close()
+
+    # Create a temp reviewed_annotations.jsonl
+    temp_jsonl = output_path / "reviewed_temp.jsonl"
+    with temp_jsonl.open("w") as f:
+        for s in samples:
+            f.write(json.dumps(s) + "\n")
+
+    return export_yolo_dataset(temp_jsonl, output_path)
 
 
 def export_yolo_dataset(
