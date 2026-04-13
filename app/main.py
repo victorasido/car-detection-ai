@@ -17,7 +17,7 @@ import numpy as np
 from uuid import uuid4
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Request
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
@@ -35,6 +35,7 @@ from app.pipeline.embedder        import DEVICE
 from app.pipeline.similarity      import compare_frame_sets, get_verdict, get_confidence
 from app.pipeline.explainer       import generate_explanation, frame_to_base64
 from app.pipeline.damage_analyzer import analyze_damage, DAMAGE_MODEL
+from app.pipeline.valuation       import estimate_vehicle_value
 from app.storage.postgres         import init_db, close_db
 from app.storage.dataset          import save_dataset_async
 from app.storage.damage_dataset   import init_damage_table, save_damage_async
@@ -116,11 +117,41 @@ class DamageResponse(BaseModel):
     best_frame:             str
 
 
+class ValuationAdjustment(BaseModel):
+    label:  str
+    type:   str
+    amount: float
+    note:   str
+
+
+class ValuationResponse(BaseModel):
+    session_id:             str
+    input_type:             str
+    damages:                List[DamageItem]
+    overall_condition:      str
+    condition_score:        float
+    repair_urgency:         str
+    estimated_damage_count: int
+    estimated_value:        float
+    estimated_value_min:    float
+    estimated_value_max:    float
+    reference_price:        float
+    currency:               str
+    pricing_confidence:     str
+    pricing_notes:          str
+    adjustment_breakdown:   List[ValuationAdjustment]
+    analysis_model:         str
+    processing_time_ms:     float
+    dataset_saved:          bool
+    best_frame:             str
+
+
 # ─────────────────────────────────────────────
 # Upload Validation Helpers
 # ─────────────────────────────────────────────
 
 MAX_UPLOAD_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+UPLOAD_CHUNK_SIZE = 1024 * 1024
 
 ALLOWED_VIDEO_TYPES = [
     "video/mp4", "video/avi", "video/mov", "video/mkv",
@@ -139,12 +170,7 @@ async def validate_video_upload(upload: UploadFile, label: str) -> str:
             status_code=400,
             detail=f"{label} harus berupa file video. Dapat: {upload.content_type}"
         )
-    content = await upload.read()
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail=f"{label} terlalu besar. Maksimal {MAX_UPLOAD_SIZE_MB}MB.")
-    tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-    tmp.write(content); tmp.flush(); tmp.close()
-    return tmp.name
+    return await _persist_upload_to_temp(upload, label, ".mp4")
 
 
 async def validate_any_upload(upload: UploadFile, label: str) -> tuple[str, str]:
@@ -164,13 +190,64 @@ async def validate_any_upload(upload: UploadFile, label: str) -> tuple[str, str]
             detail=f"{label} harus foto (jpg/png/webp) atau video (mp4/mov/mkv). Dapat: {content_type}"
         )
 
-    content = await upload.read()
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail=f"{label} terlalu besar. Maksimal {MAX_UPLOAD_SIZE_MB}MB.")
+    return await _persist_upload_to_temp(upload, label, suffix), input_type
 
+
+async def _persist_upload_to_temp(upload: UploadFile, label: str, suffix: str) -> str:
+    """Stream upload to a temp file to avoid reading the full body into RAM."""
+    total_bytes = 0
     tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
-    tmp.write(content); tmp.flush(); tmp.close()
-    return tmp.name, input_type
+
+    try:
+        while True:
+            chunk = await upload.read(UPLOAD_CHUNK_SIZE)
+            if not chunk:
+                break
+            total_bytes += len(chunk)
+            if total_bytes > MAX_UPLOAD_BYTES:
+                raise HTTPException(status_code=413, detail=f"{label} terlalu besar. Maksimal {MAX_UPLOAD_SIZE_MB}MB.")
+            tmp.write(chunk)
+
+        tmp.flush()
+        tmp.close()
+        await upload.seek(0)
+        return tmp.name
+    except Exception:
+        tmp.close()
+        if os.path.exists(tmp.name):
+            os.unlink(tmp.name)
+        raise
+
+
+def _decode_image_from_path(path: str) -> np.ndarray:
+    data = np.fromfile(path, dtype=np.uint8)
+    frame = cv2.imdecode(data, cv2.IMREAD_COLOR)
+    if frame is None:
+        raise ValueError("Tidak bisa membaca file gambar.")
+    return frame
+
+
+def prepare_best_frame(path: str, input_type: str) -> tuple[np.ndarray, dict]:
+    """Load the best frame from uploaded photo/video for downstream analysis."""
+    if input_type == "video":
+        frames, media_info = extract_frames_evenly(path, n=EXTRACT_N_FRAMES)
+        if media_info["duration_sec"] > MAX_VIDEO_DURATION_SEC:
+            raise ValueError(f"Video terlalu panjang: {media_info['duration_sec']}s. Maksimal {MAX_VIDEO_DURATION_SEC}s.")
+
+        sharp_frames, sharpness_scores = select_sharpest_frames(frames, k=1)
+        best_frame = sharp_frames[0]
+        media_info.update({"sharpness_scores": sharpness_scores, "frames_used": 1})
+        return best_frame, media_info
+
+    best_frame = _decode_image_from_path(path)
+    h, w = best_frame.shape[:2]
+    media_info = {
+        "resolution": f"{w}x{h}",
+        "input_type": "photo",
+        "frames_extracted": 1,
+        "frames_used": 1,
+    }
+    return best_frame, media_info
 
 
 # ─────────────────────────────────────────────
@@ -188,6 +265,7 @@ def root():
         "endpoints": {
             "compare": "POST /compare — 2 video → similarity score",
             "analyze": "POST /analyze — foto/video → damage detection",
+            "valuation": "POST /valuation - foto/video + harga referensi -> estimasi nilai",
             "health":  "GET /health",
             "docs":    "GET /docs",
         }
@@ -340,7 +418,7 @@ async def analyze_vehicle(
             }
 
         # Step 3: GPT-4o Vision → damage analysis
-        damage_report, analysis_model = analyze_damage(best_frame)
+        damage_report, analysis_model = await asyncio.to_thread(analyze_damage, best_frame)
 
         processing_time = round((time.time() - start_time) * 1000, 2)
         session_id      = str(uuid4())
@@ -376,6 +454,105 @@ async def analyze_vehicle(
             processing_time_ms     = processing_time,
             dataset_saved          = dataset_saved,
             best_frame             = f"data:image/jpeg;base64,{frame_to_base64(best_frame)}",
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+@app.post("/valuation", response_model=ValuationResponse)
+@limiter.limit(RATE_LIMIT)
+async def valuate_vehicle(
+    request: Request,
+    file: UploadFile = File(..., description="Foto atau video kendaraan"),
+    reference_price: float = Form(..., description="Harga referensi kendaraan dalam kondisi normal"),
+    manufacture_year: Optional[int] = Form(None, description="Tahun kendaraan"),
+    mileage_km: Optional[int] = Form(None, description="Kilometer kendaraan"),
+    currency: str = Form("IDR", description="Kode mata uang"),
+):
+    """
+    Estimasi nilai kendaraan menggunakan foto/video, hasil damage analysis,
+    dan harga referensi yang diberikan client.
+    """
+    start_time = time.time()
+    tmp_path = None
+
+    try:
+        tmp_path, input_type = await validate_any_upload(file, "file")
+
+        try:
+            best_frame, media_info = await asyncio.to_thread(prepare_best_frame, tmp_path, input_type)
+        except ValueError as e:
+            message = str(e)
+            status_code = 400 if "terlalu panjang" in message else 422
+            raise HTTPException(status_code=status_code, detail=message)
+
+        damage_report, analysis_model = await asyncio.to_thread(analyze_damage, best_frame)
+        valuation = estimate_vehicle_value(
+            reference_price=reference_price,
+            damage_report=damage_report,
+            manufacture_year=manufacture_year,
+            mileage_km=mileage_km,
+            currency=currency,
+        )
+
+        processing_time = round((time.time() - start_time) * 1000, 2)
+        session_id = str(uuid4())
+
+        media_info.update(
+            {
+                "reference_price": reference_price,
+                "manufacture_year": manufacture_year,
+                "mileage_km": mileage_km,
+                "currency": currency.upper(),
+            }
+        )
+
+        dataset_saved = False
+        if DATASET_SAVING_ENABLED:
+            try:
+                asyncio.create_task(
+                    save_damage_async(
+                        session_id=session_id,
+                        frame=best_frame.copy(),
+                        input_type=input_type,
+                        damage_report=damage_report,
+                        analysis_model=analysis_model,
+                        processing_time_ms=processing_time,
+                        media_info=media_info,
+                    )
+                )
+                dataset_saved = True
+            except Exception as e:
+                print(f"[Warning] Valuation dataset save failed: {e}")
+
+        return ValuationResponse(
+            session_id=session_id,
+            input_type=input_type,
+            damages=damage_report.get("damages", []),
+            overall_condition=damage_report.get("overall_condition", "unknown"),
+            condition_score=damage_report.get("condition_score", 0.0),
+            repair_urgency=damage_report.get("repair_urgency", "unknown"),
+            estimated_damage_count=damage_report.get("estimated_damage_count", 0),
+            estimated_value=valuation["estimated_value"],
+            estimated_value_min=valuation["estimated_value_min"],
+            estimated_value_max=valuation["estimated_value_max"],
+            reference_price=valuation["reference_price"],
+            currency=valuation["currency"],
+            pricing_confidence=valuation["pricing_confidence"],
+            pricing_notes=valuation["pricing_notes"],
+            adjustment_breakdown=valuation["adjustment_breakdown"],
+            analysis_model=analysis_model,
+            processing_time_ms=processing_time,
+            dataset_saved=dataset_saved,
+            best_frame=f"data:image/jpeg;base64,{frame_to_base64(best_frame)}",
         )
 
     except HTTPException:

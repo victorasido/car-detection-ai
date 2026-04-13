@@ -15,7 +15,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"[CLIP] Loading model '{CLIP_MODEL_NAME}' on {DEVICE.upper()}...")
 _clip_model, _clip_preprocess = clip.load(CLIP_MODEL_NAME, device=DEVICE)
 _clip_model.eval()
-print(f"[CLIP] Model ready ✓  (device: {DEVICE.upper()})")
+print(f"[CLIP] Model ready [ok] (device: {DEVICE.upper()})")
 
 
 def frame_to_pil(frame: np.ndarray) -> Image.Image:

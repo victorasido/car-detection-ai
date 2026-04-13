@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Vehicle Inspect",
+    "slug": "vehicle-inspect",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.vehicleinspect.app"
+    },
+    "ios": {
+      "bundleIdentifier": "com.vehicleinspect.app"
+    }
+  }
+}

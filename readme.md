@@ -1,57 +1,73 @@
-# Vehicle Similarity Microservice — Stage 5
+﻿# Vehicle Inspection Platform
 
-> AI-powered visual comparison pipeline  
-> Upload 2 video → CLIP embedding → cosine similarity → GPT explanation → dataset saving
+Backend AI inspection platform for vehicle similarity, damage analysis, value estimation, dataset collection, YOLO training prep, and mobile app consumption.
 
----
+## Current Status
 
-## Struktur Project
+- Phase 1: backend APIs ready
+- Phase 2: damage pipeline + dataset saving ready
+- Phase 3: YOLO dataset export scaffold ready
+- Phase 4: Expo React Native mobile scaffold ready
 
+## Features
+
+- `POST /compare`
+  Compare 2 vehicle videos with frame extraction, CLIP embedding, similarity scoring, and GPT explanation.
+- `POST /analyze`
+  Analyze vehicle damage from photo or video and return normalized JSON.
+- `POST /valuation`
+  Estimate vehicle value from media + reference price using the damage report as pricing input.
+- MinIO + PostgreSQL dataset saving
+  Save media frames and metadata for future training/review.
+- YOLO dataset preparation
+  Build review manifests and export reviewed bbox annotations to YOLO format.
+- Mobile scaffold
+  React Native / Expo shell for damage, value, compare, and local history flows.
+
+## Project Structure
+
+```text
+cars/
+|-- app/
+|   |-- main.py
+|   |-- config.py
+|   |-- pipeline/
+|   |   |-- extractor.py
+|   |   |-- embedder.py
+|   |   |-- similarity.py
+|   |   |-- explainer.py
+|   |   |-- damage_analyzer.py
+|   |   `-- valuation.py
+|   |-- storage/
+|   |   |-- minio.py
+|   |   |-- postgres.py
+|   |   |-- dataset.py
+|   |   `-- damage_dataset.py
+|   `-- training/
+|       |-- yolo_dataset.py
+|       `-- README.md
+|-- frontend/
+|-- mobile/
+|-- test/
+|-- docker-compose.yml
+|-- Dockerfile.backend
+|-- Dockerfile.frontend
+`-- requirements.txt
 ```
-vehicle-similarity/
-├── app/
-│   ├── main.py                  ← FastAPI app + endpoints
-│   ├── config.py                ← env variable & konstanta
-│   ├── pipeline/
-│   │   ├── extractor.py         ← frame extraction + sharpness filter
-│   │   ├── embedder.py          ← CLIP model + embedding generation
-│   │   ├── similarity.py        ← cosine similarity + verdict + confidence
-│   │   └── explainer.py         ← GPT-4o-mini visual explanation
-│   └── storage/
-│       ├── minio.py             ← save frame JPG ke MinIO
-│       ├── postgres.py          ← save metadata + embedding ke PostgreSQL
-│       └── dataset.py           ← async orchestrator saving
-├── frontend/                    ← React UI
-│   └── src/
-│       └── components/          ← UI Components (DropZone, ResultCard, dsb)
-├── test/
-│   └── test_api.py              ← unit test + integration test
-├── .env                         ← API keys & credentials (jangan di-commit!)
-├── docker-compose.yml
-├── Dockerfile.backend
-├── Dockerfile.frontend
-└── requirements.txt
-```
 
----
+## Prerequisites
 
-## Setup & Jalankan
+- Docker + Docker Compose
+- Python 3.11+ recommended
+- Node.js 20+ for frontend/mobile
+- OpenAI API key if you want GPT explanation or GPT damage analysis
 
-### Prasyarat
-- Docker & Docker Compose terinstall
-- OpenAI API key (opsional — untuk GPT explanation)
+## Environment
 
-### 1. Clone & konfigurasi `.env`
-
-```bash
-git clone <repo-url>
-cd cars
-```
-
-Isi file `.env`:
+Create `.env` in repo root:
 
 ```env
-OPENAI_API_KEY=sk-xxxx       # opsional
+OPENAI_API_KEY=sk-xxxx
 
 MINIO_ACCESS_KEY=minioadmin
 MINIO_SECRET_KEY=minioadmin
@@ -59,39 +75,105 @@ MINIO_BUCKET=vehicle-dataset
 
 POSTGRES_PASSWORD=postgres
 
-# Pipeline tuning (Optional)
-EXTRACT_N_FRAMES=5           # frame tersebar merata (default: 5)
-TOP_K_FRAMES=3               # pilih K tersharp (default: 3)
+EXTRACT_N_FRAMES=5
+TOP_K_FRAMES=3
 
-DATASET_SAVING=true          # set false untuk disable saving sementara
+DATASET_SAVING=true
 
-# Security & Limits (Optional)
-RATE_LIMIT="30/minute"       # rate limiter API (default: 30/minute)
-MAX_UPLOAD_SIZE_MB=100       # max upload per video (default: 100)
-MAX_VIDEO_DURATION_SEC=600   # max durasi per video (default: 600)
+RATE_LIMIT=30/minute
+MAX_UPLOAD_SIZE_MB=100
+MAX_VIDEO_DURATION_SEC=600
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8000
 ```
 
-### 2. Jalankan semua service
+## Run Options
+
+### 1. Run Everything with Docker
 
 ```bash
 docker-compose up --build
 ```
 
-Service yang berjalan:
+Services:
 
-| Service    | URL                          | Keterangan              |
-|------------|------------------------------|-------------------------|
-| Backend    | http://localhost:8000        | FastAPI + CLIP          |
-| Frontend   | http://localhost:3000        | React UI                |
-| MinIO API  | http://localhost:9000        | Object storage          |
-| MinIO UI   | http://localhost:9001        | Web console (minioadmin/minioadmin) |
-| PostgreSQL | localhost:5432               | Metadata + embeddings   |
+- Backend: `http://localhost:8000`
+- Frontend: `http://localhost:3000`
+- MinIO API: `http://localhost:9000`
+- MinIO Console: `http://localhost:9001`
+- PostgreSQL: `localhost:5432`
 
----
+Useful Docker commands:
 
-## Test
+```bash
+docker-compose up -d
+docker-compose logs -f backend
+docker-compose down
+docker-compose down -v
+```
 
-### Manual test via curl
+### 2. Run Backend Locally
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Install PyTorch and CLIP if not already installed:
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pip install git+https://github.com/openai/CLIP.git
+```
+
+Start backend:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+### 3. Run Frontend Web
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 4. Run Mobile App
+
+```bash
+cd mobile
+npm install
+npm start
+```
+
+If testing on a physical phone, point Expo to your machine LAN IP:
+
+```bash
+EXPO_PUBLIC_API_URL=http://192.168.1.10:8000
+```
+
+More mobile notes are in [mobile/README.md](/c:/Users/Victor/OneDrive/Documents/SideJob/cars/mobile/README.md).
+
+## API Endpoints
+
+### `GET /`
+
+Service info and endpoint list.
+
+### `GET /health`
+
+Health check.
+
+### `POST /compare`
+
+Form fields:
+
+- `video_a`
+- `video_b`
+
+Example:
 
 ```bash
 curl -X POST http://localhost:8000/compare \
@@ -99,149 +181,153 @@ curl -X POST http://localhost:8000/compare \
   -F "video_b=@video2.mp4"
 ```
 
-### Swagger UI
+### `POST /analyze`
 
-Buka browser: http://localhost:8000/docs
+Form fields:
 
-### Unit test
+- `file` photo or video
+
+Example:
+
+```bash
+curl -X POST http://localhost:8000/analyze \
+  -F "file=@car_damage.jpg"
+```
+
+### `POST /valuation`
+
+Form fields:
+
+- `file`
+- `reference_price`
+- `manufacture_year` optional
+- `mileage_km` optional
+- `currency` optional
+
+Example:
+
+```bash
+curl -X POST http://localhost:8000/valuation \
+  -F "file=@car_damage.jpg" \
+  -F "reference_price=250000000" \
+  -F "manufacture_year=2021" \
+  -F "mileage_km=48000" \
+  -F "currency=IDR"
+```
+
+Swagger docs:
+
+```text
+http://localhost:8000/docs
+```
+
+## Important Commands
+
+### Backend
+
+```bash
+uvicorn app.main:app --reload
+python test/test_phase12.py
+python test/test_api.py
+python test/test_api.py --integration
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+npm run build
+```
+
+### Mobile
+
+```bash
+cd mobile
+npm install
+npm start
+npm run android
+npm run ios
+npm run web
+```
+
+### Training Prep
+
+Read the Phase 3 notes:
+
+```bash
+type app\training\README.md
+```
+
+Install YOLO dependency when you are ready:
+
+```bash
+pip install ultralytics
+```
+
+Example train command after reviewed annotations have been exported:
+
+```bash
+yolo detect train data=app/training/output/data.yaml model=yolov8n.pt epochs=50 imgsz=640
+```
+
+## Tests
+
+### Phase 1 and 2 Logic
+
+```bash
+python test/test_phase12.py
+```
+
+### Phase 3 Dataset Export
+
+```bash
+python test/test_phase3_training.py
+```
+
+### Legacy Pipeline Tests
 
 ```bash
 python test/test_api.py
 ```
 
-### Integration test (server harus running)
+### Integration Test
+
+Backend must be running first:
 
 ```bash
 python test/test_api.py --integration
 ```
 
----
+## Training Flow Summary
 
-## Contoh Response
+1. Use `/analyze` to collect damage-analysis sessions.
+2. Save reviewed annotations with bbox coordinates.
+3. Convert reviewed JSONL into YOLO dataset using `app/training/yolo_dataset.py`.
+4. Train YOLO with `ultralytics`.
+5. Later replace GPT-first detection with custom model inference.
 
-```json
-{
-  "session_id": "550e8400-e29b-41d4-a716-446655440000",
-  "similarity_percentage": 91.3,
-  "confidence": "HIGH",
-  "verdict": "HIGH_SIMILARITY",
-  "explanation": "Both frames show a silver sedan with matching body lines and roof profile...",
-  "explanation_model": "gpt-4o-mini",
-  "video_a_info": {
-    "total_frames": 120,
-    "fps": 30.0,
-    "resolution": "1920x1080",
-    "duration_sec": 4.0,
-    "frames_extracted": 5,
-    "frames_used": 3,
-    "sharpness_scores": [312.4, 287.1, 201.3, 189.2, 145.6]
-  },
-  "video_b_info": { "..." : "..." },
-  "frame_scores": [92.1, 90.8, 91.0],
-  "frames_compared": 3,
-  "embedding_model": "CLIP-ViT-B/32",
-  "device_used": "CPU",
-  "processing_time_ms": 1240.5,
-  "dataset_saved": true,
-  "stage": "Dataset-v1",
-  "note": "Stage 5: CLIP + GPT-4o-mini + auto dataset saving.",
-  "best_frame_a": "data:image/jpeg;base64,...",
-  "best_frame_b": "data:image/jpeg;base64,..."
-}
-```
+## Mobile Flow Summary
 
----
+Current mobile scaffold supports:
 
-## Verdict Logic
+- damage scan
+- value estimate
+- compare
+- local session history
+- account/auth placeholder
 
-| Score   | Verdict             |
-|---------|---------------------|
-| ≥ 85%   | HIGH_SIMILARITY     |
-| 60–84%  | MODERATE_SIMILARITY |
-| 35–59%  | LOW_SIMILARITY      |
-| < 35%   | DIFFERENT           |
+What is still missing for production:
 
----
+- backend auth
+- cloud sync
+- polished UX
+- native device testing
+- Android/iOS production builds
 
-## Endpoints
+## Notes
 
-| Method | Path     | Deskripsi                              |
-|--------|----------|----------------------------------------|
-| GET    | /        | Info service + status                  |
-| GET    | /health  | Health check                           |
-| GET    | /docs    | Swagger UI                             |
-| POST   | /compare | Upload 2 video → similarity + dataset  |
-
----
-
-## Pipeline Tuning
-
-### Frame Extraction Strategy (Recommended: 5 → 3)
-
-| Config | Use Case | Pros | Cons |
-|--------|----------|------|------|
-| 5 extract → **3 sharpest** ✅ | **General use** | High accuracy, robust to blur | Slightly slower |
-| 5 extract → 2 sharpest | Speed priority | Faster processing | Lower redundancy |
-| 1 frame middle | High-speed, controlled | Fastest | Unreliable, sensitive to blur |
-
-**Current default (EXTRACT_N_FRAMES=5, TOP_K_FRAMES=3)** balances accuracy & speed optimally.
-
-Adjust via `.env` to experiment:
-```env
-# For speed (fast API response)
-EXTRACT_N_FRAMES=5
-TOP_K_FRAMES=2
-
-# For ultra-accuracy (best precision)
-EXTRACT_N_FRAMES=8
-TOP_K_FRAMES=4
-```
-
----
-
-## Pipeline (Stage 5)
-
-```
-Video A ──┐
-           ├─→ extract_frames_evenly()     ← 5 frame tersebar merata
-Video B ──┘        ↓
-               select_sharpest_frames()    ← pilih 3 frame tersharp (Laplacian)
-                   ↓
-               generate_embedding()        ← CLIP ViT-B/32 → 512-d vector
-                   ↓
-               cosine_similarity()         ← pairwise + average
-                   ↓
-               generate_explanation()      ← GPT-4o-mini + frame visual
-                   ↓
-               JSON response → user
-                   ↓ (background, non-blocking)
-               save_frame()               ← frame JPG → MinIO
-               save_metadata()            ← score + embedding → PostgreSQL
-```
-
----
-
-## Dataset Saving
-
-Setiap request ke `/compare` otomatis menyimpan:
-
-| Data | Storage | Format |
-|------|---------|--------|
-| Frame tersharp video A & B | MinIO (`vehicle-dataset` bucket) | JPEG |
-| Similarity score, verdict, confidence | PostgreSQL (`comparisons` table) | FLOAT, TEXT |
-| CLIP embedding vector (512-d) | PostgreSQL | FLOAT[] |
-| Video metadata (fps, resolusi, dll) | PostgreSQL | JSONB |
-
-Path frame di MinIO: `{session_id}/frame_a.jpg`, `{session_id}/frame_b.jpg`
-
----
-
-## Roadmap
-
-| Stage | Keterangan                          | Status |
-|-------|-------------------------------------|--------|
-| v1    | Dummy embedding, 1 frame tengah     | ✅ Done |
-| v2    | Multi-frame + sharpness filter      | ✅ Done |
-| v3    | CLIP ViT-B/32 real embedding        | ✅ Done |
-| v4    | GPT-4o-mini explanation             | ✅ Done |
-| v5    | Docker + modular refactor + dataset saving | ✅ Done |
+- Some local environment issues may still exist if dependencies like `slowapi` or CLIP are not installed in `.venv`.
+- Phase 4 mobile is still a scaffold. It needs auth, device testing, and production build setup before release.
+- Training flow still depends on reviewed bounding-box annotations before YOLO can actually be trained.
