@@ -5,12 +5,20 @@ Refactored to use APIRouters for better maintainability.
 """
 
 import time
+import os
+import sentry_sdk
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+
+sentry_sdk.init(
+    dsn=os.environ.get("SENTRY_DSN", ""),
+    traces_sample_rate=1.0,
+    profiles_sample_rate=1.0,
+)
 
 from app.config import (
     OPENAI_API_KEY, DATASET_SAVING_ENABLED, ALLOWED_ORIGINS, 

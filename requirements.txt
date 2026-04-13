@@ -27,3 +27,4 @@ slowapi>=0.1.9          # Rate limiting
 passlib[bcrypt]>=1.7.4  # Password hashing
 python-jose[cryptography]>=3.3.0  # JWT
 python-dotenv>=1.0.1
+sentry-sdk[fastapi]>=2.0.0

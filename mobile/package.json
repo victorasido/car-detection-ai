@@ -10,9 +10,14 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@react-native-async-storage/async-storage": "^1.24.0",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-community/netinfo": "^12.0.1",
+    "@sentry/react-native": "^8.7.0",
     "expo": "^53.0.0",
     "expo-document-picker": "^13.0.0",
+    "expo-file-system": "^18.1.11",
+    "expo-image-manipulator": "^13.1.7",
+    "expo-sqlite": "^55.0.15",
     "expo-status-bar": "^2.0.0",
     "react": "18.3.1",
     "react-native": "0.76.3"

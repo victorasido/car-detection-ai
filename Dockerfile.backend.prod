@@ -1,0 +1,74 @@
+# ── Backend Dockerfile (Production) ──────────────────────────────
+# Differences from Dockerfile.backend (dev):
+#   1. Multi-stage build: smaller final image
+#   2. No --reload flag (production server with multiple workers)
+#   3. Non-root user for security
+#   4. Gunicorn + Uvicorn workers for proper concurrency
+# ─────────────────────────────────────────────────────────────────
+
+# Stage 1: Builder — install heavy deps with full toolchain
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir --user torch torchvision \
+    --index-url https://download.pytorch.org/whl/cpu
+
+RUN pip install --no-cache-dir --user git+https://github.com/openai/CLIP.git
+
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Install production server
+RUN pip install --no-cache-dir --user gunicorn
+
+# Stage 2: Runtime — lean final image
+FROM python:3.11-slim AS runtime
+
+# Install only runtime deps, no build tools
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from builder
+COPY --from=builder /root/.local /home/appuser/.local
+
+# Create non-root user for security
+RUN useradd -m -u 1001 appuser
+
+WORKDIR /app
+
+# Copy source code
+COPY app/ ./app/
+
+# Set correct ownership
+RUN chown -R appuser:appuser /app
+
+USER appuser
+
+# Add user packages to PATH
+ENV PATH=/home/appuser/.local/bin:$PATH
+
+# Expose port
+EXPOSE 8000
+
+# Production: Gunicorn manages multiple Uvicorn workers
+# Workers = (2 * CPU cores) + 1, but capped at 4 for AI model memory safety
+CMD ["gunicorn", "app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "2", \
+     "--bind", "0.0.0.0:8000", \
+     "--timeout", "300", \
+     "--keep-alive", "5", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-"]

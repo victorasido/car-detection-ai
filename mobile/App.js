@@ -9,6 +9,13 @@ import {
   Pressable,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import * as Sentry from "@sentry/react-native";
+
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN || "https://examplePublicKey@o0.ingest.sentry.io/0",
+  debug: false, // Set to true to print debugging info in development
+});
+
 
 import PrimaryButton from "./src/components/PrimaryButton";
 import PickerField from "./src/components/PickerField";
@@ -27,7 +34,7 @@ import { theme } from "./src/theme";
 
 const TABS = ["damage", "value", "compare", "history", "account"];
 
-export default function App() {
+function App() {
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [activeTab, setActiveTab] = useState("damage");
@@ -482,3 +489,5 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+
+export default Sentry.wrap(App);

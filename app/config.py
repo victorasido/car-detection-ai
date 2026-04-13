@@ -1,9 +1,19 @@
 """
 config.py — Semua environment variable & konstanta
 Satu tempat untuk semua config, tidak tersebar di mana-mana.
+
+Stage 6: reads .env.production in production, .env in development.
+Use python-dotenv or Docker --env-file to inject these at runtime.
 """
 
 import os
+
+# Load .env file if python-dotenv is available (local dev convenience)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(override=False)  # override=False: env vars set by Docker/shell take priority
+except ImportError:
+    pass
 
 # ── Pipeline ───────────────────────────────────
 EXTRACT_N_FRAMES = int(os.environ.get("EXTRACT_N_FRAMES", "5"))
@@ -14,11 +24,21 @@ GPT_MODEL        = "gpt-4o-mini"
 # ── OpenAI ─────────────────────────────────────
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
-# ── MinIO ──────────────────────────────────────
-MINIO_ENDPOINT   = os.environ.get("MINIO_ENDPOINT",   "http://minio:9000")
-MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY", "minioadmin")
-MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY", "minioadmin")
-MINIO_BUCKET     = os.environ.get("MINIO_BUCKET",     "vehicle-dataset")
+# ── Object Storage (MinIO / AWS S3 / Cloudflare R2) ───────
+# Set STORAGE_PROVIDER to one of: minio | s3 | r2
+STORAGE_PROVIDER    = os.environ.get("STORAGE_PROVIDER",    "minio")
+STORAGE_ACCESS_KEY  = os.environ.get("STORAGE_ACCESS_KEY",  os.environ.get("MINIO_ACCESS_KEY", "minioadmin"))
+STORAGE_SECRET_KEY  = os.environ.get("STORAGE_SECRET_KEY",  os.environ.get("MINIO_SECRET_KEY", "minioadmin"))
+STORAGE_BUCKET      = os.environ.get("STORAGE_BUCKET",      os.environ.get("MINIO_BUCKET",     "vehicle-dataset"))
+STORAGE_ENDPOINT    = os.environ.get("STORAGE_ENDPOINT",    os.environ.get("MINIO_ENDPOINT",   "http://minio:9000"))
+STORAGE_REGION      = os.environ.get("STORAGE_REGION",      "us-east-1")
+STORAGE_CDN_BASE_URL = os.environ.get("STORAGE_CDN_BASE_URL", "")
+
+# Legacy aliases (kept for backward compatibility)
+MINIO_ENDPOINT   = STORAGE_ENDPOINT
+MINIO_ACCESS_KEY = STORAGE_ACCESS_KEY
+MINIO_SECRET_KEY = STORAGE_SECRET_KEY
+MINIO_BUCKET     = STORAGE_BUCKET
 
 # ── PostgreSQL ─────────────────────────────────
 POSTGRES_DSN = os.environ.get(
