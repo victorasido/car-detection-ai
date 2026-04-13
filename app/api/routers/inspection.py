@@ -1,6 +1,7 @@
 import time
 import asyncio
 import os
+from typing import Optional
 from uuid import uuid4
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException, Depends, Request
 from app.api.schemas import SimilarityResponse, DamageResponse, ValuationResponse

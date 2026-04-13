@@ -5,7 +5,7 @@ import numpy as np
 from fastapi import UploadFile, HTTPException
 from app.config import (
     MAX_UPLOAD_SIZE_MB, EXTRACT_N_FRAMES, MAX_VIDEO_DURATION_SEC, 
-    SELECT_SHARPEST_FRAMES_K
+    TOP_K_FRAMES
 )
 from app.pipeline.extractor import extract_frames_evenly, select_sharpest_frames
 

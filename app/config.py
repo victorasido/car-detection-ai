@@ -16,6 +16,7 @@ except ImportError:
     pass
 
 # ── Pipeline ───────────────────────────────────
+DEVICE           = os.environ.get("DEVICE", "cpu")
 EXTRACT_N_FRAMES = int(os.environ.get("EXTRACT_N_FRAMES", "5"))
 TOP_K_FRAMES     = int(os.environ.get("TOP_K_FRAMES", "3"))
 CLIP_MODEL_NAME  = "ViT-B/32"

@@ -3,6 +3,7 @@ storage/postgres.py — PostgreSQL with connection pooling
 """
 
 import psycopg2
+from typing import Optional, List, Dict, Any
 from psycopg2 import pool
 from psycopg2.extras import Json
 from app.config import POSTGRES_DSN
@@ -91,6 +92,9 @@ def close_db():
         _pool = None
         print("[PostgreSQL] Pool closed ✓")
 
+def get_pool():
+    """Return the global connection pool instance."""
+    return _pool
 
 def get_db_conn():
     """Generator for FastAPI Depends to handle pool.getconn / putconn."""

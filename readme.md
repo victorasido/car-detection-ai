@@ -108,3 +108,33 @@ npx expo start
 - **Database**: PostgreSQL 15+
 - **Storage**: Any S3-compatible service (MinIO/R2/S3).
 - **Mobile**: Android 10+ or iOS 15+.
+
+## 🐳 Docker Cheat Sheet
+
+### Basic Operations
+- **Start Services**: `docker-compose up -d`
+- **Stop Services**: `docker-compose stop` (keeps containers)
+- **Restart one service**: `docker-compose restart backend`
+- **Rebuild & Start**: `docker-compose up -d --build`
+
+### Logs & Monitoring
+- **View all logs**: `docker-compose logs -f`
+- **View specific logs**: `docker-compose logs -f backend`
+- **Check status**: `docker-compose ps`
+- **Check resource usage**: `docker stats`
+
+### Cleanup & Maintenance
+- **Stop & Remove everything**: `docker-compose down`
+- **⚠️ Remove everything AND all data (Volumes)**: `docker-compose down -v`
+- **Remove unused data**: `docker system prune -f`
+- **Enter container shell**: `docker-compose exec backend sh`
+
+### Production Workflow
+When using the production stack, always include the `-f` and `--env-file` flags:
+```bash
+# Restart production services
+docker-compose -f docker-compose.prod.yml --env-file .env.production restart
+
+# View production logs
+docker-compose -f docker-compose.prod.yml logs -f
+```
