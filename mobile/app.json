@@ -24,8 +24,9 @@
           "project": "your-project-name",
           "organization": "your-org-name"
         }
-      ]
+      ],
+      "@sentry/react-native",
+      "expo-sqlite"
     ]
   }
 }
-

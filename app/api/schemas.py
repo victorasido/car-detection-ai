@@ -86,3 +86,43 @@ class Token(BaseModel):
 class AnnotationIn(BaseModel):
     analysis_id: str
     bboxes:      List[dict]
+
+
+# ─────────────────────────────────────────────────────────
+# Inspection Engine Schemas (Stage 6)
+# ─────────────────────────────────────────────────────────
+
+class InspectionSubmitResponse(BaseModel):
+    """Returned immediately (202) when a video is submitted for inspection."""
+    inspection_id: str
+    status:        str    # always "pending" at submission time
+    message:       str
+    poll_url:      str
+
+
+class InspectionStatusResponse(BaseModel):
+    """Lightweight status + progress — safe to poll every few seconds."""
+    inspection_id:  str
+    status:         str   # pending | processing | done | failed
+    created_at:     Optional[str] = None
+    started_at:     Optional[str] = None
+    completed_at:   Optional[str] = None
+    error_message:  Optional[str] = None
+    progress:       Optional[dict] = None
+
+
+class BBoxItem(BaseModel):
+    x:        int
+    y:        int
+    w:        int
+    h:        int
+    label:    str
+    severity: Optional[str] = None
+
+
+class FrameReviewIn(BaseModel):
+    """Admin submits corrected bounding boxes for a single frame."""
+    bboxes:         List[BBoxItem]
+    is_verified:    bool            = True
+    override_notes: Optional[str]  = None
+

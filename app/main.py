@@ -14,6 +14,12 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+# ── Bcrypt Monkeypatch (Fix for passlib incompatibility) ─────
+import bcrypt
+if not hasattr(bcrypt, "__about__"):
+    bcrypt.__about__ = type("about", (object,), {"__version__": bcrypt.__version__})
+# ─────────────────────────────────────────────────────────────
+
 sentry_sdk.init(
     dsn=os.environ.get("SENTRY_DSN", ""),
     traces_sample_rate=1.0,
@@ -21,8 +27,8 @@ sentry_sdk.init(
 )
 
 from app.config import (
-    OPENAI_API_KEY, DATASET_SAVING_ENABLED, ALLOWED_ORIGINS, 
-    CLIP_MODEL_NAME, DEVICE, RATE_LIMIT
+    OPENAI_API_KEY, DATASET_SAVING_ENABLED, ALLOWED_ORIGINS,
+    CLIP_MODEL_NAME, DEVICE, RATE_LIMIT, ANALYSIS_BACKEND,
 )
 from app.pipeline.damage_analyzer import DAMAGE_MODEL
 from app.storage.postgres import init_db, close_db
@@ -30,6 +36,7 @@ from app.storage.damage_dataset import init_damage_table
 
 # Import Routers
 from app.api.routers import auth, inspection, admin
+from app.api.routers import inspection_v2
 
 # ─────────────────────────────────────────────
 # Rate Limiter + Lifespan
@@ -63,7 +70,8 @@ app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=
 # ─────────────────────────────────────────────
 
 app.include_router(auth.router)
-app.include_router(inspection.router)
+app.include_router(inspection.router)          # legacy: /compare, /analyze, /valuation
+app.include_router(inspection_v2.router)       # new:    /inspection/analyze, /status, /result, /history
 app.include_router(admin.router)
 
 # ─────────────────────────────────────────────
@@ -74,16 +82,18 @@ app.include_router(admin.router)
 def root():
     return {
         "service":        "Vehicle Inspection API",
-        "version":        "5.3.0",
+        "version":        "6.0.0",
         "status":         "running",
         "openai_ready":   bool(OPENAI_API_KEY),
+        "analysis_backend": ANALYSIS_BACKEND,
         "dataset_saving": DATASET_SAVING_ENABLED,
         "endpoints": {
-            "auth": "/auth/register, /auth/login, /auth/me",
-            "inspection": "/compare, /analyze, /valuation",
-            "admin": "/admin/pending, /admin/approve, /admin/frame/{id}",
-            "health":  "/health",
-            "docs":    "/docs",
+            "auth":            "/auth/register, /auth/login, /auth/me",
+            "inspection_v2":   "POST /inspection/analyze → GET /inspection/status/:id → GET /inspection/result/:id",
+            "inspection_legacy": "/compare, /analyze, /valuation",
+            "admin":           "/admin/pending, /admin/inspections/pending, /admin/review/frame/:id, /admin/export/yolo/:id",
+            "health":          "/health",
+            "docs":            "/docs",
         }
     }
 

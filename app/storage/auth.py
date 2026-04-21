@@ -38,9 +38,15 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
-        user_id: str = payload.get("user_id")
-        if username is None or user_id is None:
+        if username is None:
             raise credentials_exception
-        return {"username": username, "user_id": user_id}
+            
+        # Resilient auth: Fetch latest UUID from DB instead of trusting JWT payload
+        from app.storage.postgres import get_user_by_username
+        db_user = get_user_by_username(username)
+        if not db_user:
+            raise credentials_exception
+            
+        return {"username": username, "user_id": str(db_user["id"])}
     except JWTError:
         raise credentials_exception

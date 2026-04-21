@@ -22,9 +22,14 @@ openai>=1.35.0
 boto3>=1.34.0           # MinIO
 psycopg2-binary>=2.9.9  # PostgreSQL
 
+# ── Celery/Redis queue ─────────────────────────
+celery>=5.4.0
+redis>=5.0.0
+
 # ── Security ───────────────────────────────────
 slowapi>=0.1.9          # Rate limiting
-passlib[bcrypt]>=1.7.4  # Password hashing
-python-jose[cryptography]>=3.3.0  # JWT
+passlib[bcrypt]>=1.7.4
+bcrypt==4.0.1
+python-jose[cryptography]>=3.3.0
 python-dotenv>=1.0.1
 sentry-sdk[fastapi]>=2.0.0

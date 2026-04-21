@@ -381,3 +381,86 @@ export async function valuateVehicle(rawAsset, referencePrice, manufactureYear, 
   );
 }
 
+
+// ─────────────────────────────────────────────────────────
+// Inspection Engine API (Stage 6 — async inspection flow)
+// ─────────────────────────────────────────────────────────
+
+/**
+ * Submit a single vehicle video for async inspection.
+ *
+ * Returns immediately with { inspection_id, status: "pending", poll_url }.
+ * Poll getInspectionStatus() every 3–5 seconds until status === "done" | "failed".
+ *
+ * Offline-aware: if no network, enqueues to SQLite sync_queue.
+ *
+ * @param {object}  rawAsset   - Asset from expo-document-picker (video)
+ * @param {string}  [vehicleId] - Optional plate/VIN for tracking
+ * @returns {Promise<object>}  { inspection_id, status, poll_url } or { offlineSaved: true }
+ */
+export async function inspectVehicle(rawAsset, vehicleId = null) {
+  const { asset, meta } = await prepareForUpload(rawAsset);
+  console.log(`[API] inspectVehicle: preparing upload`, meta);
+
+  const extraFields = vehicleId ? { vehicle_id: vehicleId } : {};
+
+  const isOnline = await checkOnline();
+  if (!isOnline) {
+    await enqueueSyncTask('/inspection/analyze', {
+      type: 'fs',
+      fileParts: [{ fieldName: "file", asset }],
+      extraFields,
+    });
+    return { offlineSaved: true, message: "Saved offline. Will sync when connected." };
+  }
+
+  return uploadWithFileSystem(
+    "/inspection/analyze",
+    [{ fieldName: "file", asset }],
+    extraFields,
+  );
+}
+
+/**
+ * Poll the lifecycle status of a submitted inspection.
+ *
+ * Safe to call every 3–5 seconds. Returns:
+ *   { inspection_id, status, progress: { frames_analyzed, frames_total }, ... }
+ *
+ * Status values: "pending" → "processing" → "done" | "failed"
+ *
+ * @param {string} inspectionId
+ * @returns {Promise<object>}
+ */
+export async function getInspectionStatus(inspectionId) {
+  return request(`/inspection/status/${inspectionId}`);
+}
+
+/**
+ * Fetch the full inspection result once status === "done".
+ *
+ * Returns the complete report including per-frame data, damage list,
+ * condition score, and public frame image URLs.
+ *
+ * @param {string} inspectionId
+ * @returns {Promise<object>}
+ */
+export async function getInspectionResult(inspectionId) {
+  return request(`/inspection/result/${inspectionId}`);
+}
+
+/**
+ * Fetch paginated inspection history for the authenticated user.
+ *
+ * Use on app open to restore history that may not be in local SQLite cache
+ * (e.g. after reinstall or when using multiple devices).
+ *
+ * @param {number} [page=1]
+ * @param {number} [perPage=20]
+ * @returns {Promise<{ items: object[], total: number, page: number }>}
+ */
+export async function getInspectionHistory(page = 1, perPage = 20) {
+  return request(`/inspection/history?page=${page}&per_page=${perPage}`);
+}
+
+

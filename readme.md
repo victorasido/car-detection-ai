@@ -20,14 +20,19 @@ This platform isn't just an app for taking photos; it's a **Data Flywheel** desi
     - [x] **Mobile Optimization**: Client-side compression & background uploads.
     - [x] **Offline-First**: SQLite-based sync queue for dead zones.
     - [x] **Observability**: Sentry error tracking for both Backend and Mobile.
+- **Phase 7: Asynchronous Inspection Engine (V2)** → **DONE**
+    - [x] **Background Processing**: Celery & Redis task queue for resilient inference.
+    - [x] **Deep Inspection**: Multi-frame full-video analysis with real-time UI polling.
+    - [x] **Admin Tooling**: Multi-frame sequential manual review dashboard.
 
 ## Features
 
 - **JWT Authentication** (`/auth/*`): Secure access for mobile and web users.
+- **Deep Inspection (V2)** (`/inspection/analyze`): Asynchronous multi-frame video analysis pipeline.
 - **Vehicle Similarity** (`/compare`): CLIP embedding + GPT-4o-mini explanation.
-- **Damage Analysis** (`/analyze`): Visual inspection via GPT-4o.
+- **Damage Scan** (`/analyze`): Single-shot visual analysis via GPT-4o.
 - **Value Estimation** (`/valuation`): Damage-aware vehicle pricing.
-- **Human-in-the-Loop Review**: Admin queue for validating and correcting AI annotations.
+- **Human-in-the-Loop Review**: Multi-frame admin dashboard for validating and correcting AI annotations.
 - **YOLO Training Bridge**: Export reviews directly to YOLOv8 folder structure.
 - **Mobile Client**: Expo app with media compression, background uploads, and offline syncing.
 
@@ -42,18 +47,19 @@ cars/
 |   |   |-- routers/         # Auth, Inspection, and Admin routers
 |   |   |-- schemas.py       # Pydantic data contracts
 |   |   `-- utils.py         # Upload validation & helpers
-|   |-- pipeline/            # AI inspection logic
+|   |-- inspection/          # V2 async inspection engine
+|   |   `-- worker.py        # Celery distributed tasks (fan-out/fan-in)
+|   |-- pipeline/            # AI inspection logic (GPT Vision)
 |   |-- storage/             # Data persistence layer
 |   |   |-- object_store.py  # Unified S3/R2/MinIO adapter
-|   |   `-- postgres.py      # DB session and pooling management
+|   |   `-- postgres.py      # DB session and state management
 |   `-- training/            # YOLO dataset generation
 |-- frontend/                # React review dashboard
 |-- mobile/                  # Expo mobile application
 |-- nginx/                   # Production reverse proxy config
 |-- test/                    # Unit and integration tests
-|-- docker-compose.yml       # Local development stack
-`-- docker-compose.prod.yml  # Hardened production stack
-```
+|-- docker-compose.yml       # Local dev stack (App + DB + Redis + Celery)
+`-- docker-compose.prod.yml  # Hardened stack (Nginx + App + DB + Redis + Celery)
 
 ## Running the Platform
 
@@ -105,6 +111,8 @@ npx expo start
 ## Requirements
 
 - **Backend**: Python 3.11+
+- **Task Queue**: Celery 5.4.0+
+- **Broker/Cache**: Redis 5.0+
 - **Database**: PostgreSQL 15+
 - **Storage**: Any S3-compatible service (MinIO/R2/S3).
 - **Mobile**: Android 10+ or iOS 15+.

@@ -44,7 +44,10 @@ async def validate_any_upload(upload: UploadFile, label: str) -> tuple[str, str]
 
 async def _persist_upload_to_temp(upload: UploadFile, label: str, suffix: str) -> str:
     total_bytes = 0
-    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    # Use shared volume dir so the Celery Worker container can access the file
+    shared_dir = "/tmp/inspection_uploads"
+    os.makedirs(shared_dir, exist_ok=True)
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False, dir=shared_dir)
     try:
         while True:
             chunk = await upload.read(UPLOAD_CHUNK_SIZE)

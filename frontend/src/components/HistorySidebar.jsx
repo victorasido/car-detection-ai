@@ -69,12 +69,29 @@ export default function HistorySidebar({ history, onSelect, onClear }) {
       {/* History items */}
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {history.map((item) => {
-          const color = verdictColor[item.verdict] || "#6E6E73";
-          const label = verdictLabel[item.verdict] || item.verdict;
+          const isCompare = item.similarity_percentage !== undefined;
+          const score = isCompare ? item.similarity_percentage : (item.condition_score * 10);
+          
+          let color = "#6E6E73";
+          let label = "Unknown";
+          
+          if (isCompare) {
+             color = verdictColor[item.verdict] || "#6E6E73";
+             label = verdictLabel[item.verdict] || item.verdict;
+          } else {
+             // For damage analysis / deep inspection
+             const condition = item.overall_condition;
+             if (condition === "excellent") { color = "#00953D"; label = "Excellent"; }
+             else if (condition === "good") { color = "#10B981"; label = "Good"; }
+             else if (condition === "fair") { color = "#F59E0B"; label = "Fair"; }
+             else if (condition === "poor") { color = "#D97706"; label = "Poor"; }
+             else if (condition === "critical") { color = "#EF4444"; label = "Critical"; }
+             else { color = "#6E6E73"; label = condition || "Analyzed"; }
+          }
 
           return (
             <div
-              key={item.session_id || item.timestamp}
+              key={item.inspection_id || item.session_id || item.timestamp}
               onClick={() => onSelect(item)}
               style={{
                 padding: "12px 14px",
@@ -107,8 +124,10 @@ export default function HistorySidebar({ history, onSelect, onClear }) {
                   color: color,
                   fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
                 }}>
-                  {item.similarity_percentage.toFixed(1)}
-                  <span style={{ fontSize: "11px", fontWeight: 500, opacity: 0.7 }}>%</span>
+                  {score ? score.toFixed(1) : "0.0"}
+                  <span style={{ fontSize: "11px", fontWeight: 500, opacity: 0.7 }}>
+                     {isCompare ? "%" : "/100"}
+                  </span>
                 </span>
                 {/* Time */}
                 <span style={{

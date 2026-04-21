@@ -40,11 +40,15 @@ services:
       # PostgreSQL config
       - POSTGRES_DSN=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/vehicledb
 
+      # Redis config
+      - REDIS_URL=redis://redis:6379/0
+
       # Feature flag — set ke "false" untuk disable saving sementara
       - DATASET_SAVING=${DATASET_SAVING:-true}
 
     volumes:
       - ./app:/app/app
+      - inspection_tmp:/tmp/inspection_uploads
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     depends_on:
       minio:
@@ -67,8 +71,9 @@ services:
       - "3000:3000"
     volumes:
       - ./frontend:/app
+      - /app/node_modules  # <--- Anonymous volume for performance on Windows/Mac
     working_dir: /app
-    command: ["sh", "-c", "npm install && npm run dev -- --host"]
+    command: ["sh", "-c", "if [ ! -d node_modules/vite ]; then npm install; fi && npm run dev -- --host"]
     depends_on:
       backend:
         condition: service_healthy
@@ -117,6 +122,49 @@ services:
       - /init-minio.sh
     restart: no
 
+  # ── Redis: Message Broker & Cache ────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: vehiclesim-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Backend Worker: Celery ──────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: vehiclesim-worker
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
+      - MINIO_BUCKET=${MINIO_BUCKET:-vehicle-dataset}
+      - POSTGRES_DSN=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/vehicledb
+      - REDIS_URL=redis://redis:6379/0
+      - DATASET_SAVING=${DATASET_SAVING:-true}
+    volumes:
+      - ./app:/app/app
+      - inspection_tmp:/tmp/inspection_uploads
+    command: ["celery", "-A", "app.inspection.celery_app.celery_app", "worker", "--loglevel=info", "--pool=threads", "--concurrency=4"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   # ── PostgreSQL: Metadata + Embeddings ────────────────────
   # Simpan similarity score, verdict, embedding vector (512-d), video info
   postgres:
@@ -145,4 +193,8 @@ volumes:
   minio_data:
     driver: local
   postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  inspection_tmp:
     driver: local

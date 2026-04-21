@@ -65,9 +65,11 @@ def _build_prompt() -> str:
     conditions = ", ".join(CONDITION_VALUES)
     urgencies = ", ".join(URGENCY_VALUES)
 
-    return f"""You are an expert vehicle damage inspector.
+    return f"""You are a professional automotive forensic inspector. 
 
-Analyze the vehicle image carefully and return exactly one JSON object.
+CRITICAL: You MUST analyze the image provided. Do NOT say you cannot see it. Look for dents, scratches, cracks, rust, paint damage, broken glass, or deformations.
+
+Analyze the vehicle image carefully and return EXACTLY one JSON object.
 
 Expected JSON schema:
 {{
@@ -75,23 +77,22 @@ Expected JSON schema:
     {{
       "type": "<one of: {damage_types}>",
       "severity": "<one of: {severities}>",
-      "location": "<specific area such as front_bumper, rear_left_door, hood, windshield>",
-      "description": "<1-2 short factual sentences>"
+      "location": "<specific area such as 'front_right_fender', 'windshield_top', 'rear_bumper_center'>",
+      "description": "<1-2 short factual sentences about the specific damage marks found>"
     }}
   ],
   "overall_condition": "<one of: {conditions}>",
-  "condition_score": <float 0.0-10.0 where 10 is best>,
+  "condition_score": <float 0.0-10.0 where 10.0 is perfect and 0.0 is total loss>,
   "repair_urgency": "<one of: {urgencies}>",
   "estimated_damage_count": <integer>,
-  "analysis_notes": "<1-2 short factual sentences>"
+  "analysis_notes": "<Summary of findings or confirmation of a clean vehicle if no damage found>"
 }}
 
 Rules:
-- Report only visible damage. If uncertain, do not invent damage.
-- Use an empty damages array if no clear damage is visible.
-- Use snake_case for location when possible.
-- Keep descriptions factual and concise.
-- Return JSON only. No markdown, code fences, or extra commentary."""
+1. Report ONLY clearly visible damage. 
+2. If the vehicle is clean, return an empty damages array [].
+3. For location, be specific (e.g., 'right_side_near_door' instead of just 'body').
+4. Return ONLY the JSON object. No intro, no outro, no markdown fences."""
 
 
 def analyze_damage(frame: np.ndarray) -> tuple[dict, str]:

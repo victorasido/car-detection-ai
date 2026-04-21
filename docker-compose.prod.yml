@@ -70,6 +70,53 @@ services:
           cpus: "2.0"
           memory: 4G
 
+  # ── Redis: Message Broker & Cache ────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: vehicleinspect-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Backend Worker: Celery ──────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend.prod
+    container_name: vehicleinspect-worker
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - POSTGRES_DSN=${POSTGRES_DSN}
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-r2}
+      - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
+      - STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+      - STORAGE_BUCKET=${STORAGE_BUCKET}
+      - STORAGE_ENDPOINT=${STORAGE_ENDPOINT}
+      - STORAGE_REGION=${STORAGE_REGION:-auto}
+      - REDIS_URL=redis://redis:6379/0
+      - EXTRACT_N_FRAMES=${EXTRACT_N_FRAMES:-5}
+      - TOP_K_FRAMES=${TOP_K_FRAMES:-3}
+    networks:
+      - app_network
+    command: ["celery", "-A", "app.inspection.celery_app.celery_app", "worker", "--loglevel=info", "--pool=threads", "--concurrency=4"]
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    restart: always
+
   # ── Nginx: Reverse Proxy + SSL Termination ────────────────────
   nginx:
     image: nginx:1.27-alpine
@@ -109,3 +156,4 @@ networks:
 volumes:
   certbot-certs:   # Let's Encrypt SSL certificates
   certbot-webroot: # ACME challenge files for certificate issuance/renewal
+  redis_data:      # Redis persistent storage

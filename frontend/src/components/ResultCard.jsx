@@ -16,12 +16,20 @@ const confidenceMeta = {
   LOW: { label: "Low Confidence", dot: "#EF4444" },
 };
 
+const urgencyMeta = {
+  none: { label: "No Repair Needed", bg: "#F0FDF4", color: "#00953D" },
+  optional: { label: "Optional Repair", bg: "#F5F5F7", color: "#6E6E73" },
+  recommended: { label: "Recommended", bg: "#FFFBEB", color: "#D97706" },
+  urgent: { label: "Urgent Repair", bg: "#FEF2F2", color: "#DC2626" },
+  critical: { label: "Critical Failure", bg: "#450A0A", color: "#FEE2E2" },
+};
+
 function VideoInfoCard({ info, label }) {
   const fields = [
-    { key: "Resolution", val: info.resolution, icon: "⊞" },
-    { key: "Duration", val: `${info.duration_sec}s`, icon: "◷" },
-    { key: "FPS", val: info.fps, icon: "⏱" },
-    { key: "Frames used", val: info.frames_used, icon: "▤" },
+    { key: "Resolution", val: info?.resolution || "N/A", icon: "⊞" },
+    { key: "Duration", val: `${info?.duration_sec || 0}s`, icon: "◷" },
+    { key: "FPS", val: info?.fps || 0, icon: "⏱" },
+    { key: "Frames used", val: info?.frames_used || 0, icon: "▤" },
   ];
 
   return (
@@ -60,7 +68,7 @@ function VideoInfoCard({ info, label }) {
           textTransform: "uppercase",
           color: "#6E6E73",
         }}>
-          Video {label}
+          Media Info
         </span>
       </div>
 
@@ -92,9 +100,19 @@ function VideoInfoCard({ info, label }) {
 }
 
 export default function ResultCard({ result }) {
-  const vm = verdictMeta[result.verdict] || verdictMeta.DIFFERENT;
-  const cm = confidenceMeta[result.confidence] || confidenceMeta.LOW;
+  const isCompare = result.similarity_percentage !== undefined;
+  const isV2 = !!result.frames;
   const [expanded, setExpanded] = useState(true);
+  const [activeFrameIdx, setActiveFrameIdx] = useState(0);
+
+  // Similarity Meta
+  const vm = isCompare ? (verdictMeta[result.verdict] || verdictMeta.DIFFERENT) : null;
+  const cm = confidenceMeta[result.confidence] || confidenceMeta.LOW;
+  
+  // Damage Meta (V1 or V2)
+  const um = !isCompare ? (urgencyMeta[result.repair_urgency] || urgencyMeta.optional) : null;
+
+  const currentFrame = isV2 ? result.frames[activeFrameIdx] : null;
 
   return (
     <div className="fade-up" style={{
@@ -106,8 +124,8 @@ export default function ResultCard({ result }) {
       marginBottom: "20px",
     }}>
 
-      {/* Visual Comparison Slider */}
-      {result.best_frame_a && result.best_frame_b && (
+      {/* Visual Header */}
+      {isCompare && result.best_frame_a && result.best_frame_b && (
         <div style={{ borderBottom: "1px solid #E5E5EA" }}>
           <div style={{
             fontSize: "11px",
@@ -126,6 +144,69 @@ export default function ResultCard({ result }) {
         </div>
       )}
 
+      {/* V2 Frame Gallery */}
+      {isV2 && (
+        <div style={{ borderBottom: "1px solid #E5E5EA", background: "#000" }}>
+          <div style={{ position: "relative", height: "360px" }}>
+            <img 
+              src={`${import.meta.env.VITE_API_URL || ""}/admin/frame/${result.inspection_id || result.session_id}?path=${currentFrame.frame_path}`}
+              alt={`Frame ${activeFrameIdx}`}
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+            />
+            <div style={{
+                position: "absolute", bottom: "16px", left: "16px",
+                background: "rgba(0,0,0,0.6)", padding: "8px 16px",
+                borderRadius: "10px", color: "white", fontSize: "11px",
+                fontWeight: 700, letterSpacing: "0.05em", backdropFilter: "blur(8px)"
+            }}>
+                DEEP ANALYSIS: FRAME {activeFrameIdx + 1} / {result.frames.length}
+            </div>
+          </div>
+          <div style={{ 
+            display: "flex", gap: "8px", padding: "12px", 
+            overflowX: "auto", background: "#111", borderTop: "1px solid #333" 
+          }}>
+            {result.frames.map((f, i) => (
+              <button 
+                key={i} 
+                onClick={() => setActiveFrameIdx(i)}
+                style={{
+                  flexShrink: 0, width: "70px", height: "50px", 
+                  borderRadius: "6px", overflow: "hidden", 
+                  border: activeFrameIdx === i ? "2px solid #10B981" : "2px solid transparent",
+                  transition: "all 0.2s",
+                  background: "none",
+                  padding: 0
+                }}
+              >
+                <img 
+                  src={`${import.meta.env.VITE_API_URL || ""}/admin/frame/${result.inspection_id || result.session_id}?path=${f.frame_path}`} 
+                  style={{ width: "100%", height: "100%", objectFit: "cover", opacity: activeFrameIdx === i ? 1 : 0.5 }}
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!isCompare && !isV2 && result.best_frame && (
+        <div style={{ position: "relative", height: "320px", background: "#000" }}>
+           <img 
+            src={result.best_frame} 
+            alt="Analyzed vehicle"
+            style={{ width: "100%", height: "100%", objectFit: "contain" }}
+           />
+           <div style={{
+              position: "absolute", bottom: "16px", left: "16px",
+              background: "rgba(0,0,0,0.6)", padding: "8px 16px",
+              borderRadius: "10px", color: "white", fontSize: "11px",
+              fontWeight: 700, letterSpacing: "0.05em", backdropFilter: "blur(8px)"
+           }}>
+              KEY FRAME ANALYZED
+           </div>
+        </div>
+      )}
+
       {/* Score hero */}
       <div style={{
         padding: "32px",
@@ -134,7 +215,7 @@ export default function ResultCard({ result }) {
         alignItems: "center",
         gap: "28px",
         flexWrap: "wrap",
-        background: `linear-gradient(135deg, ${vm.bg} 0%, #fff 60%)`,
+        background: isCompare ? `linear-gradient(135deg, ${vm.bg} 0%, #fff 60%)` : "#fff",
       }}>
         {/* Score circle */}
         <div style={{ position: "relative", flexShrink: 0 }}>
@@ -143,10 +224,10 @@ export default function ResultCard({ result }) {
             <circle
               cx="50" cy="50" r="42"
               fill="none"
-              stroke={vm.ring}
+              stroke={isCompare ? vm.ring : "#10B981"}
               strokeWidth="8"
               strokeLinecap="round"
-              strokeDasharray={`${2 * Math.PI * 42 * result.similarity_percentage / 100} ${2 * Math.PI * 42}`}
+              strokeDasharray={`${2 * Math.PI * 42 * (isCompare ? result.similarity_percentage : (result.condition_score * 10)) / 100} ${2 * Math.PI * 42}`}
               transform="rotate(-90 50 50)"
               style={{ transition: "stroke-dasharray 1s ease" }}
             />
@@ -160,25 +241,27 @@ export default function ResultCard({ result }) {
               fontSize: "22px",
               fontWeight: 800,
               letterSpacing: "-0.04em",
-              color: vm.color,
+              color: isCompare ? vm.color : "#065F46",
               lineHeight: 1,
               fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
             }}>
-              {result.similarity_percentage.toFixed(1)}
+              {isCompare ? result.similarity_percentage.toFixed(1) : result.condition_score.toFixed(1)}
             </span>
-            <span style={{ fontSize: "11px", color: "#6E6E73", fontWeight: 500 }}>%</span>
+            <span style={{ fontSize: "11px", color: "#6E6E73", fontWeight: 500 }}>
+               {isCompare ? "%" : "/ 10"}
+            </span>
           </div>
         </div>
 
-        {/* Verdict + confidence */}
+        {/* Verdict + confidence / Urgency */}
         <div style={{ flex: 1 }}>
           <div style={{
             display: "inline-flex",
             alignItems: "center",
             gap: "6px",
-            background: vm.bg,
-            color: vm.color,
-            border: `1px solid ${vm.border}`,
+            background: isCompare ? vm.bg : um.bg,
+            color: isCompare ? vm.color : um.color,
+            border: `1px solid ${isCompare ? vm.border : "#E5E5EA"}`,
             borderRadius: "99px",
             padding: "5px 14px",
             fontSize: "12px",
@@ -190,22 +273,30 @@ export default function ResultCard({ result }) {
             <div style={{
               width: "6px", height: "6px",
               borderRadius: "50%",
-              background: vm.ring,
+              background: isCompare ? vm.ring : um.color,
             }} />
-            {vm.label.toUpperCase()}
+            {(isCompare ? vm.label : um.label).toUpperCase()}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px" }}>
-            <div style={{
-              width: "6px", height: "6px",
-              borderRadius: "50%",
-              background: cm.dot,
-              flexShrink: 0,
-            }} />
-            <span style={{ fontSize: "12px", color: "#6E6E73" }}>{cm.label}</span>
+             {!isCompare ? (
+                <span style={{ fontSize: "13px", fontWeight: 700, color: "#1D1D1F" }}>
+                   Condition: {result.overall_condition.toUpperCase()}
+                </span>
+             ) : (
+                <>
+                  <div style={{
+                    width: "6px", height: "6px",
+                    borderRadius: "50%",
+                    background: cm.dot,
+                    flexShrink: 0,
+                  }} />
+                  <span style={{ fontSize: "12px", color: "#6E6E73" }}>{cm.label}</span>
+                </>
+             )}
           </div>
 
-          <ScoreBar score={result.similarity_percentage} color={vm.ring} />
+          <ScoreBar score={isCompare ? result.similarity_percentage : (result.condition_score * 10)} color={isCompare ? vm.ring : "#10B981"} />
         </div>
 
         {/* Meta */}
@@ -221,44 +312,86 @@ export default function ResultCard({ result }) {
             color: "#6E6E73",
             marginBottom: "2px",
           }}>
-            {result.processing_time_ms}ms
+            {result.processing_time_ms ? `${result.processing_time_ms.toFixed(0)}ms` : "Async"}
           </div>
           <div style={{
             fontSize: "11px",
             fontFamily: "ui-monospace, 'SF Mono', monospace",
             color: "#6E6E73",
           }}>
-            {result.embedding_model}
+            {result.analysis_model || result.embedding_model || "V2 Engine"}
           </div>
+        </div>
+      </div>
+
+      {/* Results Content */}
+      {isCompare ? (
+        <div style={{ padding: "20px 32px", borderBottom: "1px solid #E5E5EA" }}>
           <div style={{
             fontSize: "11px",
             fontFamily: "ui-monospace, 'SF Mono', monospace",
+            fontWeight: 600,
             color: "#6E6E73",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            marginBottom: "12px",
           }}>
-            {result.device_used}
+            Frame Analysis — {result.frames_compared} comparison pairs
           </div>
+          <FrameScores scores={result.frame_scores} color={vm.ring} />
         </div>
-      </div>
-
-      {/* Frame scores */}
-      <div style={{ padding: "20px 32px", borderBottom: "1px solid #E5E5EA" }}>
-        <div style={{
-          fontSize: "11px",
-          fontFamily: "ui-monospace, 'SF Mono', monospace",
-          fontWeight: 600,
-          color: "#6E6E73",
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          marginBottom: "12px",
-        }}>
-          Frame Analysis — {result.frames_compared} comparison pairs
+      ) : (
+        <div style={{ borderBottom: "1px solid #E5E5EA" }}>
+           <div style={{ padding: "24px 32px" }}>
+            <div style={{
+               fontSize: "11px",
+               fontFamily: "ui-monospace, 'SF Mono', monospace",
+               fontWeight: 600,
+               color: "#6E6E73",
+               letterSpacing: "0.08em",
+               textTransform: "uppercase",
+               marginBottom: "14px",
+            }}>
+               {isV2 ? `Frame ${activeFrameIdx + 1} Damages` : `Detected Damages (${result.estimated_damage_count})`}
+            </div>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+               {(isV2 ? (currentFrame?.ai_damages?.damages || []) : (result.damages || [])).length === 0 ? (
+                  <div className="p-4 bg-gray-50 rounded-xl text-center text-sm text-gray-400 italic">
+                     No visible damage detected.
+                  </div>
+               ) : (isV2 ? currentFrame.ai_damages.damages : result.damages).map((dmg, idx) => (
+                  <div key={idx} style={{
+                     background: "#FAFAFA",
+                     padding: "14px 18px",
+                     borderRadius: "16px",
+                     border: "1px solid #E5E5EA",
+                     display: "flex",
+                     gap: "14px",
+                  }}>
+                     <div style={{
+                        width: "8px", height: "40px",
+                        background: dmg.severity === 'severe' ? '#EF4444' : (dmg.severity === 'moderate' ? '#F59E0B' : '#6E6E73'),
+                        borderRadius: "4px"
+                     }} />
+                     <div style={{ flex: 1 }}>
+                        <div className="flex items-center gap-3 mb-1">
+                           <span className="text-sm font-black uppercase tracking-tight text-gray-900">{dmg.type.replace('_', ' ')}</span>
+                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-400 capitalize">{dmg.severity}</span>
+                        </div>
+                        <div className="text-[10px] font-bold text-emerald-600 uppercase mb-2 tracking-wide">Location: {dmg.location.replace('_', ' ')}</div>
+                        <p className="text-xs text-gray-500 leading-relaxed font-medium">{dmg.description}</p>
+                     </div>
+                  </div>
+               ))}
+            </div>
+           </div>
         </div>
-        <FrameScores scores={result.frame_scores} color={vm.ring} />
-      </div>
+      )}
 
-      {/* Analysis Result (previously AI Explanation) */}
-      {result.explanation && (
-        <div style={{ padding: "24px 32px", borderBottom: "1px solid #E5E5EA" }}>
+      {/* Analysis Result (AI Explanation) */}
+      {(result.explanation || result.analysis_notes || (isV2 && currentFrame?.ai_damages?.analysis_notes)) && (
+        <div style={{ padding: "24px 32px", borderBottom: isCompare || isV2 ? "1px solid #E5E5EA" : "none" }}>
           {/* Section header */}
           <div style={{
             display: "flex",
@@ -288,7 +421,7 @@ export default function ResultCard({ result }) {
                   letterSpacing: "-0.01em",
                   fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
                 }}>
-                  Analysis Result
+                  {isV2 ? "Frame Summary" : "Inspector's Note"}
                 </div>
                 <div style={{
                   fontSize: "10px",
@@ -296,7 +429,7 @@ export default function ResultCard({ result }) {
                   color: "#6E6E73",
                   marginTop: "1px",
                 }}>
-                  powered by {result.explanation_model}
+                  generated by {result.explanation_model || result.analysis_model || "AI Engine"}
                 </div>
               </div>
             </div>
@@ -345,7 +478,7 @@ export default function ResultCard({ result }) {
                 paddingLeft: "4px",
                 fontFamily: "'SF Pro Text', -apple-system, BlinkMacSystemFont, sans-serif",
               }}>
-                {result.explanation}
+                {isV2 ? (currentFrame?.ai_damages?.analysis_notes || result.analysis_notes) : (result.explanation || result.analysis_notes)}
               </p>
             </div>
           )}
@@ -353,31 +486,34 @@ export default function ResultCard({ result }) {
       )}
 
       {/* Video metadata — card layout */}
-      <div style={{ padding: "24px 32px" }}>
-        <div style={{
-          fontSize: "11px",
-          fontFamily: "ui-monospace, 'SF Mono', monospace",
-          fontWeight: 600,
-          color: "#6E6E73",
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          marginBottom: "14px",
-        }}>
-          Video Details
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-          <VideoInfoCard info={result.video_a_info} label="A" />
-          <VideoInfoCard info={result.video_b_info} label="B" />
-        </div>
-
-        {/* Session ID */}
-        {result.session_id && (
+      {isCompare && (
+        <div style={{ padding: "24px 32px" }}>
           <div style={{
-            marginTop: "14px",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
+            fontSize: "11px",
+            fontFamily: "ui-monospace, 'SF Mono', monospace",
+            fontWeight: 600,
+            color: "#6E6E73",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            marginBottom: "14px",
           }}>
+            Video Details
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <VideoInfoCard info={result.video_a_info} label="A" />
+            <VideoInfoCard info={result.video_b_info} label="B" />
+          </div>
+        </div>
+      )}
+
+      {!isCompare && result.media_info && (
+          <div style={{ padding: "24px 32px", paddingTop: 0, marginTop: isV2 ? "24px" : 0 }}>
+             <VideoInfoCard info={result.media_info} label="M" />
+          </div>
+      )}
+
+      {/* Session ID footer */}
+      <div style={{ padding: "16px 32px", borderTop: "1px solid #E5E5EA", display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ fontSize: "11px", color: "#6E6E73" }}>Session</span>
             <span style={{
               fontSize: "11px",
@@ -387,7 +523,7 @@ export default function ResultCard({ result }) {
               padding: "2px 8px",
               borderRadius: "6px",
             }}>
-              {result.session_id}
+              {result.inspection_id || result.session_id}
             </span>
             {result.dataset_saved && (
               <span style={{
@@ -402,9 +538,8 @@ export default function ResultCard({ result }) {
                 ✓ saved
               </span>
             )}
-          </div>
-        )}
       </div>
     </div>
   );
 }
+

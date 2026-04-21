@@ -22,6 +22,14 @@ TOP_K_FRAMES     = int(os.environ.get("TOP_K_FRAMES", "3"))
 CLIP_MODEL_NAME  = "ViT-B/32"
 GPT_MODEL        = "gpt-4o-mini"
 
+# ── Inspection Engine ──────────────────────────
+# ANALYSIS_BACKEND: "mock" | "gpt" | "yolo"
+#   mock → deterministic dummy (no OpenAI cost) — safe default for local dev
+#   gpt  → GPT-4o Vision (requires OPENAI_API_KEY)
+#   yolo → YOLO inference (future, requires trained weights)
+ANALYSIS_BACKEND   = os.environ.get("ANALYSIS_BACKEND", "mock")
+WORKER_CONCURRENCY = int(os.environ.get("WORKER_CONCURRENCY", "2"))
+
 # ── OpenAI ─────────────────────────────────────
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
