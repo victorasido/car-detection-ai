@@ -65,8 +65,16 @@ def aggregate_results(frame_results: List[Dict[str, Any]]) -> dict:
 
 def _deduplicate_damages(damages: list) -> list:
     """
-    Merge duplicate damage entries by (type, location).
-    When duplicates exist, keep the one with the highest severity.
+    Merge damage entries that appear in multiple frames by (type, location).
+
+    FIX #4: Instead of silently dropping duplicates, we:
+      - Keep the entry with the HIGHEST severity (most critical wins).
+      - Record `occurrence_count` so "seen in 3 frames" is not lost.
+      - Preserve `description` from the highest-severity instance.
+
+    Two physically separate damages of the same type at the same location
+    (e.g. two dents on door_left) cannot be distinguished without bbox data.
+    When bbox support is added, switch the key to include spatial clustering.
     """
     seen: Dict[tuple, dict] = {}
     for dmg in damages:
@@ -77,11 +85,16 @@ def _deduplicate_damages(damages: list) -> list:
         existing = seen.get(key)
         if existing is None:
             seen[key] = dict(dmg)
+            seen[key]["occurrence_count"] = 1
         else:
+            existing["occurrence_count"] = existing.get("occurrence_count", 1) + 1
             existing_rank = _SEVERITY_RANK.get(existing.get("severity", ""), 0)
             new_rank      = _SEVERITY_RANK.get(dmg.get("severity", ""), 0)
             if new_rank > existing_rank:
+                # Upgrade severity + description, keep the running count
+                count = existing["occurrence_count"]
                 seen[key] = dict(dmg)
+                seen[key]["occurrence_count"] = count
     return list(seen.values())
 
 

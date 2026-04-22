@@ -1,14 +1,14 @@
 export const theme = {
-  bg: "#F3EFE6",
-  surface: "#FFF9F1",
-  surfaceStrong: "#103B33",
-  surfaceMuted: "#E6DDCF",
-  line: "#D5C8B8",
-  ink: "#17211E",
-  inkSoft: "#5E665F",
-  accent: "#C96D21",
-  accentSoft: "#F3D8BE",
-  success: "#2E7D5B",
-  danger: "#B8472A",
+  bg: "#F8FAF8",
+  surface: "#FFFFFF",
+  surfaceStrong: "#064E3B", // AURA Emerald
+  surfaceMuted: "#F1F5F1",
+  line: "#E2E8F0",
+  ink: "#0F172A",
+  inkSoft: "#64748B",
+  accent: "#B59E5D", // AURA Gold
+  accentSoft: "#E9DFB4",
+  success: "#10B981",
+  danger: "#EF4444",
   white: "#FFFFFF",
 };

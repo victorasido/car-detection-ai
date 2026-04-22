@@ -24,6 +24,7 @@ Standardized output contract (ALL backends must return this shape):
 """
 
 import numpy as np
+from typing import Optional
 from app.config import ANALYSIS_BACKEND
 
 # One consistent model name logged per backend
@@ -36,16 +37,20 @@ INSPECTION_MODEL_NAMES = {
 DAMAGE_MODEL = INSPECTION_MODEL_NAMES.get(ANALYSIS_BACKEND, "unknown")
 
 
-def analyze_frame(frame: np.ndarray) -> dict:
+def analyze_frame(frame: np.ndarray, backend: Optional[str] = None) -> dict:
     """
     Pluggable analysis adapter. Returns a standardized damage dict.
     All three backends conform to the same output contract (see module docstring).
-    """
-    backend = ANALYSIS_BACKEND.lower()
 
-    if backend == "gpt":
+    FIX #6: `backend` can now be passed per-call (e.g. "gpt", "mock", "yolo").
+    Falls back to the ANALYSIS_BACKEND env var when not specified.
+    Existing callers that omit the argument are fully backward-compatible.
+    """
+    resolved = (backend or ANALYSIS_BACKEND).lower()
+
+    if resolved == "gpt":
         return _analyze_with_gpt(frame)
-    elif backend == "yolo":
+    elif resolved == "yolo":
         return _analyze_with_yolo(frame)
     else:
         return _analyze_mock(frame)

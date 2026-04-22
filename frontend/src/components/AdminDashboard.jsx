@@ -6,7 +6,7 @@ const API_BASE = import.meta.env.VITE_API_URL || "";
 export default function AdminDashboard({ token }) {
   const [activeQueue, setActiveQueue] = useState("v2"); // "v1" or "v2"
   const [items, setItems] = useState([]);
-  const [selected, setSelected] = useState(null); // current inspection (v2) or analytic (v1)
+  const [selected, setSelected] = useState(null); 
   const [activeFrameIdx, setActiveFrameIdx] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -45,7 +45,6 @@ export default function AdminDashboard({ token }) {
           fetchItems();
         }
       } else {
-        // V2 Flow: Save individual frame
         const frame = selected.frames[activeFrameIdx];
         const res = await fetch(`${API_BASE}/admin/review/frame/${frame.frame_id}`, {
           method: "POST",
@@ -69,7 +68,7 @@ export default function AdminDashboard({ token }) {
   const currentImageUrl = selected ? (
     activeQueue === "v1" 
     ? `${API_BASE}/admin/frame/${selected.session_id}?path=${selected.frame_path}`
-    : `${API_BASE}/admin/frame/${selected.inspection_id}?path=${selected.frames[activeFrameIdx].frame_path}`
+    : `${API_BASE}/admin/inspections/frame/${selected.frames[activeFrameIdx].frame_id}/image?path=${encodeURIComponent(selected.frames[activeFrameIdx].frame_path)}`
   ) : null;
 
   const currentAnnotations = selected ? (
@@ -79,75 +78,120 @@ export default function AdminDashboard({ token }) {
   ) : [];
 
   return (
-    <div className="flex gap-8 p-8 bg-gray-50 min-h-screen">
-      {/* Sidebar: Pending List */}
-      <div className="w-80 flex flex-col gap-4">
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-          <h2 className="text-2xl font-black tracking-tight text-gray-900">Review Queue</h2>
-          <div className="flex gap-2 mt-4">
+    <div className="aura-admin-wrap" style={{ display: "flex", gap: "32px", height: "calc(100vh - 120px)" }}>
+      <style>{`
+         .aura-admin-wrap {
+            color: var(--aura-ink);
+         }
+         .sidebar-pane {
+            width: 340px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+         }
+         .queue-card {
+            background: #fff;
+            padding: 16px;
+            border-radius: 20px;
+            border: 1.5px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+         }
+         .queue-card.active {
+            border-color: var(--aura-emerald);
+            background: #f0fdf4;
+            box-shadow: 0 10px 20px -5px rgba(6, 78, 59, 0.08);
+            transform: translateX(8px);
+         }
+         .queue-card:hover:not(.active) {
+            border-color: var(--aura-emerald-light);
+            background: #fafafa;
+         }
+         .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            border: 2px dashed var(--border);
+            border-radius: 32px;
+            color: var(--muted);
+            gap: 16px;
+         }
+      `}</style>
+      
+      {/* Sidebar Archive */}
+      <aside className="sidebar-pane">
+        <div className="glass" style={{ padding: '24px', borderRadius: '24px' }}>
+          <h2 className="brand-font" style={{ fontSize: '24px', color: 'var(--aura-emerald)', marginBottom: '16px' }}>Review Queue</h2>
+          <div style={{ display: 'flex', background: 'var(--aura-slate)', padding: '4px', borderRadius: '12px' }}>
              <button 
                 onClick={() => setActiveQueue("v2")}
-                className={`flex-1 py-1.5 rounded-lg text-[10px] font-black tracking-widest border transition-all ${activeQueue === "v2" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-400 border-gray-200"}`}
+                className="aura-btn"
+                style={{ flex: 1, fontSize: '10px', background: activeQueue === 'v2' ? '#fff' : 'transparent', boxShadow: activeQueue === 'v2' ? 'var(--shadow-sm)' : 'none', color: activeQueue === 'v2' ? 'var(--aura-emerald)' : 'var(--muted)' }}
              >
-                DEEP (V2)
+                DEEP SCAN
              </button>
              <button 
                 onClick={() => setActiveQueue("v1")}
-                className={`flex-1 py-1.5 rounded-lg text-[10px] font-black tracking-widest border transition-all ${activeQueue === "v1" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-400 border-gray-200"}`}
+                className="aura-btn"
+                style={{ flex: 1, fontSize: '10px', background: activeQueue === 'v1' ? '#fff' : 'transparent', boxShadow: activeQueue === 'v1' ? 'var(--shadow-sm)' : 'none', color: activeQueue === 'v1' ? 'var(--aura-emerald)' : 'var(--muted)' }}
              >
                 LEGACY
              </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {loading ? (
-             <div className="text-center py-10 text-gray-400 font-medium italic">Scanning vault...</div>
+             <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)', fontSize: '13px' }}>Accessing neural vaults...</div>
           ) : items.map(item => (
             <button
               key={item.id || item.inspection_id}
               onClick={() => { setSelected(item); setActiveFrameIdx(0); }}
-              className={`w-full text-left p-4 rounded-2xl transition-all border ${
-                (selected?.id === item.id || selected?.inspection_id === item.inspection_id) 
-                ? "bg-emerald-50 border-emerald-500 shadow-md shadow-emerald-100 scale-[1.02]" 
-                : "bg-white border-gray-100 hover:border-emerald-200 hover:shadow-sm"
-              }`}
+              className={`queue-card ${ (selected?.id === item.id || selected?.inspection_id === item.inspection_id) ? "active" : "" }`}
             >
-              <div className="text-xs font-black text-emerald-600 mb-1">{(item.session_id || item.inspection_id).slice(0, 8)}...</div>
-              <div className="text-sm font-bold text-gray-800 truncate">
-                 {activeQueue === "v1" ? (item.media_info?.resolution || "Photo Analysis") : `${item.frames.length} Full Frames`}
+              <div className="mono" style={{ fontSize: "10px", fontWeight: "800", color: "var(--aura-emerald)", marginBottom: "4px" }}>
+                 ID: {(item.session_id || item.inspection_id).slice(0, 12)}
               </div>
-              <div className="text-[10px] text-gray-400 mt-2 font-mono uppercase tracking-widest">
-                 {new Date(item.created_at).toLocaleTimeString()}
+              <div style={{ fontSize: "14px", fontWeight: "700", color: "var(--aura-ink)" }}>
+                 {activeQueue === "v1" ? (item.media_info?.resolution || "Sensor Image") : `${item.frames?.length || 0} Neural Frames`}
+              </div>
+              <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "8px" }}>
+                 {new Date(item.created_at).toLocaleTimeString()} · {item.user_id ? 'Field Operator' : 'Automated'}
               </div>
             </button>
           ))}
           {!loading && items.length === 0 && (
-            <div className="bg-white/50 p-8 rounded-2xl text-center border border-dashed border-gray-200 text-gray-400 text-sm italic">
-              All caught up! No sessions to review.
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)', fontSize: '13px', border: '1.5px dashed var(--border)', borderRadius: '20px' }}>
+              Vault is clear. All sessions verified.
             </div>
           )}
         </div>
-      </div>
+      </aside>
 
-      {/* Main Content: Annotation */}
-      <div className="flex-1">
+      {/* Workspace */}
+      <main style={{ flex: 1, position: 'relative' }}>
         {selected ? (
-          <div className="flex flex-col h-full bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="glass fade-up" style={{ height: '100%', borderRadius: '32px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
              {activeQueue === "v2" && (
-                <div className="bg-gray-900 p-4 flex gap-2 overflow-x-auto border-b border-gray-800">
-                   {selected.frames.map((f, i) => (
+                <div style={{ display: 'flex', gap: '8px', padding: '16px 24px', background: 'var(--aura-emerald)', overflowX: 'auto' }}>
+                   {selected.frames?.map((f, i) => (
                       <button 
                          key={f.frame_id}
                          onClick={() => setActiveFrameIdx(i)}
-                         className={`flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden border-2 transition-all ${activeFrameIdx === i ? "border-emerald-500" : "border-transparent opacity-40 hover:opacity-100"}`}
+                         style={{ flexShrink: 0, width: '80px', height: '54px', borderRadius: '10px', overflow: 'hidden', border: activeFrameIdx === i ? '3px solid var(--aura-gold)' : '2px solid transparent', opacity: activeFrameIdx === i ? 1 : 0.4, transition: 'all 0.2s', padding: 0 }}
                       >
-                         <img src={`${API_BASE}/admin/frame/${selected.inspection_id}?path=${f.frame_path}`} className="w-full h-full object-cover" />
+                         <img src={`${API_BASE}/admin/inspections/frame/${f.frame_id}/image?path=${encodeURIComponent(f.frame_path)}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </button>
                    ))}
                 </div>
              )}
-             <div className="flex-1 relative">
+             <div style={{ flex: 1 }}>
                 <AnnotationCanvas
                    key={`${selected.id || selected.inspection_id}-${activeFrameIdx}`}
                    imageUrl={currentImageUrl}
@@ -158,15 +202,13 @@ export default function AdminDashboard({ token }) {
              </div>
           </div>
         ) : (
-          <div className="h-full rounded-3xl border-4 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-300 gap-4">
-            <svg className="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-            <p className="text-xl font-bold italic tracking-wider">SELECT A SESSION TO START REVIEWING</p>
+          <div className="empty-state">
+             <div style={{ fontSize: '48px' }}>🕵️</div>
+             <p className="brand-font" style={{ fontSize: '20px', color: 'var(--aura-emerald)' }}>Intelligence Verification Module</p>
+             <p style={{ fontSize: '14px', color: 'var(--muted)' }}>Select a sequence from the queue to finalize structural reports.</p>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

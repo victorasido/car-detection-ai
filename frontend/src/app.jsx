@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import LandingPage from "./LandingPage";
 import Header from "./components/Header";
 import DropZone from "./components/DropZone";
 import ResultCard from "./components/ResultCard";
@@ -11,8 +12,9 @@ const API_BASE = import.meta.env.VITE_API_URL || "";
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
+  const [showLanding, setShowLanding] = useState(!token);
   const [view, setView] = useState("inspector"); // "inspector" or "reviewer"
-  const [inspectorMode, setInspectorMode] = useState("compare"); // "compare", "analyze", or "deep"
+  const [inspectorMode, setInspectorMode] = useState("compare"); // "compare", "inspection"
   
   const [fileA, setFileA] = useState(null);
   const [fileB, setFileB] = useState(null);
@@ -45,7 +47,6 @@ export default function App() {
           }
 
           if (status.status === "done") {
-             // Fetch result
              const resResult = await fetch(`${API_BASE}/inspection/result/${activeInspectionId}`, {
                 headers: { Authorization: `Bearer ${token}` }
              });
@@ -56,7 +57,7 @@ export default function App() {
              setLoading(false);
              clearInterval(interval);
           } else if (status.status === "failed") {
-             setError(status.error || "Inspection failed.");
+             setError(status.error_message || "Inspection failed.");
              setActiveInspectionId(null);
              setLoading(false);
              clearInterval(interval);
@@ -72,11 +73,13 @@ export default function App() {
   const handleLogin = (newToken) => {
     setToken(newToken);
     localStorage.setItem("token", newToken);
+    setShowLanding(false);
   };
 
   const handleLogout = () => {
     setToken(null);
     localStorage.removeItem("token");
+    setShowLanding(true);
   };
 
   const addToHistory = (newData) => {
@@ -178,167 +181,195 @@ export default function App() {
     }
   };
 
+  if (showLanding) {
+    return <LandingPage onEnterApp={() => token ? setShowLanding(false) : setShowLanding(false)} />;
+  }
+
   if (!token) {
     return <Login onLogin={handleLogin} />;
   }
 
   return (
-    <>
+    <div className="aura-os-shell" style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--bg)" }}>
       <style>{`
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-          background: #F5F5F7;
-          font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
-          color: #1D1D1F;
-          -webkit-font-smoothing: antialiased;
+        .aura-os-shell {
+          color: var(--fg);
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(12px); }
-          to   { opacity: 1; transform: translateY(0); }
+        .nav-sidebar {
+          width: 80px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: 24px 0;
+          gap: 32px;
+          background: var(--aura-emerald);
+          color: #fff;
+          z-index: 50;
         }
-        .fade-up { animation: fadeUp 0.4s ease both; }
+        .nav-item {
+          width: 48px;
+          height: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 12px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          opacity: 0.6;
+        }
+        .nav-item.active {
+          background: rgba(255,255,255,0.15);
+          opacity: 1;
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2);
+        }
+        .nav-item:hover {
+          opacity: 1;
+        }
+        .main-content-wrap {
+          flex: 1;
+          display: flex;
+          overflow: hidden;
+        }
+        .content-area {
+          flex: 1;
+          overflow-y: auto;
+          background: #fdfdfd;
+          padding: 40px;
+        }
+        .section-header {
+          margin-bottom: 40px;
+        }
+        .mode-toggler {
+          display: inline-flex;
+          background: var(--border);
+          padding: 4px;
+          border-radius: 99px;
+          margin-bottom: 24px;
+        }
+        .mode-btn {
+          padding: 6px 16px;
+          border-radius: 99px;
+          font-size: 11px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          background: transparent;
+          color: var(--muted);
+        }
+        .mode-btn.active {
+          background: #fff;
+          color: var(--aura-emerald);
+          box-shadow: var(--shadow-sm);
+        }
       `}</style>
 
-      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "#F5F5F7" }}>
-        <Header />
-        
-        {/* View Toggler */}
-        <div className="bg-white border-b border-gray-100 flex px-8 py-3 gap-6">
-           <button 
-              onClick={() => setView("inspector")}
-              className={`text-[11px] font-black uppercase tracking-widest transition-all ${view === "inspector" ? "text-emerald-600 border-b-2 border-emerald-600 pb-1" : "text-gray-400 hover:text-gray-600"}`}
-           >
-              Field Inspector
-           </button>
-           <button 
-              onClick={() => setView("reviewer")}
-              className={`text-[11px] font-black uppercase tracking-widest transition-all ${view === "reviewer" ? "text-emerald-600 border-b-2 border-emerald-600 pb-1" : "text-gray-400 hover:text-gray-600"}`}
-           >
-              Review Dashboard
-           </button>
-           <div className="flex-1" />
-           <button 
-              onClick={handleLogout}
-              className="text-[11px] font-black uppercase tracking-widest text-red-400 hover:text-red-600 transition-all font-mono"
-           >
-              Logout
-           </button>
-        </div>
+      <div className="main-content-wrap">
+        {/* Minimal Navigation Sidebar */}
+        <aside className="nav-sidebar">
+          <div className="logo brand-font" style={{ fontSize: '18px', color: 'var(--aura-gold)' }}>A</div>
+          <div className={`nav-item ${view === 'inspector' ? 'active' : ''}`} onClick={() => setView('inspector')} title="Inspector">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          </div>
+          <div className={`nav-item ${view === 'reviewer' ? 'active' : ''}`} onClick={() => setView('reviewer')} title="Review">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </div>
+          <div style={{ marginTop: 'auto' }} className="nav-item" onClick={handleLogout} title="Logout">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </div>
+        </aside>
 
-        {view === "reviewer" ? (
-          <AdminDashboard token={token} />
-        ) : (
-          <div style={{ display: "flex", flex: 1 }}>
-            <main style={{ flex: 1, padding: "48px 32px 80px" }}>
-              <div style={{ maxWidth: "720px", margin: "0 auto" }}>
-                <div className="fade-up" style={{ marginBottom: "32px" }}>
-                  <div className="flex gap-4 mb-4">
-                     <button 
-                        onClick={() => { setInspectorMode("compare"); setResult(null); }}
-                        className={`text-[10px] font-bold px-4 py-1.5 rounded-full transition-all border ${inspectorMode === "compare" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-400 border-gray-200"}`}
-                     >
-                        SIMILARITY CHECK
-                     </button>
-                      <button 
-                         onClick={() => { setInspectorMode("inspect"); setResult(null); }}
-                         className={`text-[10px] font-bold px-4 py-1.5 rounded-full transition-all border ${inspectorMode === "inspect" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-400 border-gray-200"}`}
-                      >
-                         NEW INSPECTION
-                      </button>
-                   </div>
-                   <h1 style={{ fontSize: "30px", fontWeight: 800, letterSpacing: "-0.04em" }}>
-                     {inspectorMode === "compare" ? "Vehicle Similarity" : "AI Vehicle Inspection"}
-                   </h1>
-                   <p style={{ fontSize: "15px", color: "#6E6E73", lineHeight: 1.6, maxWidth: "480px" }}>
-                     {inspectorMode === "compare" 
-                       ? "Compare vehicle videos securely using AI-powered CLIP embeddings."
-                       : "Upload a vehicle photo or video. The AI will automatically adapt and run a full inspection."}
-                   </p>
+        <section className="content-area">
+          <Header />
+          
+          {view === "reviewer" ? (
+            <AdminDashboard token={token} />
+          ) : (
+            <div className="fade-up" style={{ maxWidth: "800px", margin: "0 auto" }}>
+              <div className="section-header">
+                <div className="mode-toggler">
+                  <button className={`mode-btn ${inspectorMode === 'compare' ? 'active' : ''}`} onClick={() => setInspectorMode('compare')}>Similarity</button>
+                  <button className={`mode-btn ${inspectorMode === 'inspection' ? 'active' : ''}`} onClick={() => setInspectorMode('inspection')}>Inspection</button>
+                </div>
+                <h1 style={{ fontSize: "42px", color: "var(--aura-emerald)", marginBottom: "8px" }}>
+                  {inspectorMode === "compare" ? "Vehicle Intelligence" : "Structural Analysis"}
+                </h1>
+                <p style={{ color: "var(--muted)", maxWidth: '500px', lineHeight: 1.6 }}>
+                  {inspectorMode === "compare" 
+                    ? "Deep-CLIP embeddings for verifying visual consistency across capture sessions."
+                    : "Multi-frame AI inspection for automated structural risk assessment."}
+                </p>
+              </div>
+
+              <div className="glass" style={{
+                borderRadius: "32px", padding: "40px", marginBottom: "40px", boxShadow: "var(--shadow-lg)"
+              }}>
+                <div style={{ display: "flex", gap: "24px", marginBottom: "32px", flexWrap: "wrap" }}>
+                  <DropZone label={inspectorMode === "compare" ? "Baseline Video" : "Inspection Media"} file={fileA} onFile={setFileA} disabled={loading} />
+                  {inspectorMode === "compare" && (
+                    <DropZone label="Reference Video" file={fileB} onFile={setFileB} disabled={loading} />
+                  )}
                 </div>
 
-                <div className="fade-up" style={{
-                  background: "#fff", border: "1px solid #E5E5EA", borderRadius: "20px",
-                  padding: "24px", marginBottom: "16px", boxShadow: "0 2px 12px rgba(0,0,0,0.04)"
-                }}>
-                  <div style={{ display: "flex", gap: "16px", marginBottom: "20px", flexWrap: "wrap" }}>
-                    <DropZone label={inspectorMode === "compare" ? "Video A" : "Vehicle Media"} file={fileA} onFile={setFileA} disabled={loading} />
-                    {inspectorMode === "compare" && (
-                      <DropZone label="Video B" file={fileB} onFile={setFileB} disabled={loading} />
-                    )}
-                  </div>
-
-                   {inspectorMode === "compare" ? (
-                    <button
-                      onClick={handleCompare}
-                      disabled={!fileA || !fileB || loading}
-                      className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
-                        fileA && fileB && !loading 
-                        ? "bg-emerald-600 text-white shadow-lg shadow-emerald-100" 
-                        : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                      }`}
-                    >
-                      {loading ? "Analyzing..." : "Compare Videos"}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        if (!fileA) return;
-                        const isVideo = fileA.name && fileA.name.match(/\.(mp4|mov|mkv|avi)$/i);
+                 <button
+                    onClick={() => {
+                      if (!fileA) return;
+                      const isVideo = fileA.name && fileA.name.match(/\.(mp4|mov|mkv|avi)$/i);
+                      if (inspectorMode === "compare") {
+                        handleCompare();
+                      } else {
                         if (isVideo || (fileA.type && fileA.type.startsWith("video/"))) {
                           handleDeepInspection();
                         } else {
                           handleAnalyze();
                         }
-                      }}
-                      disabled={!fileA || loading}
-                      className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
-                        fileA && !loading 
-                        ? "bg-emerald-600 text-white shadow-lg shadow-emerald-100" 
-                        : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                      }`}
-                    >
-                      {loading ? "Initializing Scan..." : "Start AI Inspection"}
-                    </button>
-                  )}
-                </div>
-
-                {error && <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm font-bold border border-red-100">⚠ {error}</div>}
-                
-                {loading && activeInspectionId && progress && (
-                   <div className="fade-up bg-white p-6 rounded-2xl border border-gray-100 shadow-sm mb-6">
-                      <div className="flex justify-between items-center mb-4">
-                         <span className="text-xs font-black uppercase tracking-widest text-emerald-600">Processing Inspection...</span>
-                         <span className="text-xs font-mono text-gray-400">{Math.round((progress.frames_analyzed / (progress.frames_total || 1)) * 100)}%</span>
-                      </div>
-                      <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                         <div 
-                            className="h-full bg-emerald-500 transition-all duration-500" 
-                            style={{ width: `${(progress.frames_analyzed / (progress.frames_total || 1)) * 100}%` }}
-                         />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 mt-4">
-                         <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                            <div className="text-[10px] text-gray-400 uppercase font-bold mb-1">Extraction</div>
-                            <div className="text-sm font-black text-gray-800">{progress.frames_extracted} / {progress.frames_total}</div>
-                         </div>
-                         <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                            <div className="text-[10px] text-gray-400 uppercase font-bold mb-1">AI Analysis</div>
-                            <div className="text-sm font-black text-gray-800">{progress.frames_analyzed} done</div>
-                         </div>
-                      </div>
-                   </div>
-                )}
-
-                {loading && !activeInspectionId && <Skeleton />}
-                {result && !loading && <ResultCard result={result} />}
+                      }
+                    }}
+                    disabled={!fileA || (inspectorMode === "compare" && !fileB) || loading}
+                    className="aura-btn aura-btn-primary"
+                    style={{ width: '100%', padding: '20px', fontSize: '16px', letterSpacing: '0.02em' }}
+                  >
+                    {loading ? "AI Processing..." : inspectorMode === "compare" ? "Start Similarity Check" : "Launch AI Inspection"}
+                  </button>
               </div>
-            </main>
 
-            <HistorySidebar history={history} onSelect={setResult} onClear={handleClearHistory} />
-          </div>
-        )}
+              {error && <div style={{ padding: '20px', background: '#fef2f2', color: '#b91c1c', borderRadius: '16px', border: '1.5px solid #fee2e2', marginBottom: '24px' }}>⚠ {error}</div>}
+              
+              {loading && activeInspectionId && progress && (
+                 <div className="fade-up glass" style={{ padding: '32px', borderRadius: '24px', marginBottom: '24px' }}>
+                    <div className="flex justify-between items-center mb-6">
+                       <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--aura-emerald)', letterSpacing: '0.1em' }}>NEURAL ANALYSIS IN PROGRESS</span>
+                       <span className="mono" style={{ fontSize: '14px', color: 'var(--aura-emerald)' }}>{Math.round((progress.frames_analyzed / (progress.frames_total || 1)) * 100)}%</span>
+                    </div>
+                    <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '99px', overflow: 'hidden', marginBottom: '24px' }}>
+                       <div 
+                          className="h-full bg-emerald-500 transition-all duration-500" 
+                          style={{ width: `${(progress.frames_analyzed / (progress.frames_total || 1)) * 100}%`, background: 'var(--aura-emerald)', height: '100%' }}
+                       />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                       <div className="glass" style={{ padding: '16px', borderRadius: '16px' }}>
+                          <div style={{ fontSize: '10px', fontWeight: '800', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Extracted</div>
+                          <div style={{ fontSize: '18px', fontWeight: '700' }}>{progress.frames_extracted} / {progress.frames_total}</div>
+                       </div>
+                       <div className="glass" style={{ padding: '16px', borderRadius: '16px' }}>
+                          <div style={{ fontSize: '10px', fontWeight: '800', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>AI Scanned</div>
+                          <div style={{ fontSize: '18px', fontWeight: '700' }}>{progress.frames_analyzed}</div>
+                       </div>
+                    </div>
+                 </div>
+              )}
+
+              {loading && !activeInspectionId && <Skeleton />}
+              {result && !loading && <ResultCard result={result} />}
+            </div>
+          )}
+        </section>
+
+        <HistorySidebar history={history} onSelect={setResult} onClear={handleClearHistory} />
       </div>
-    </>
+    </div>
   );
 }

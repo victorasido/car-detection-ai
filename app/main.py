@@ -55,9 +55,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title       = "Vehicle Inspection API",
-    description = "AI-powered vehicle inspection — similarity + damage detection",
-    version     = "5.3.0",
+    title       = "AURA Neural Engine",
+    description = "Advanced Undercarriage & Risk Analysis — High-fidelity structural audit platform.",
+    version     = "1.0.0-MVP",
     lifespan    = lifespan,
 )
 
@@ -81,16 +81,17 @@ app.include_router(admin.router)
 @app.get("/")
 def root():
     return {
-        "service":        "Vehicle Inspection API",
-        "version":        "6.0.0",
-        "status":         "running",
-        "openai_ready":   bool(OPENAI_API_KEY),
+        "service":        "AURA Neural Engine",
+        "branding":       "Advanced Undercarriage & Risk Analysis",
+        "version":        "1.0.0-MVP",
+        "status":         "operational",
+        "core_ready":     bool(OPENAI_API_KEY),
         "analysis_backend": ANALYSIS_BACKEND,
-        "dataset_saving": DATASET_SAVING_ENABLED,
+        "archiving":      DATASET_SAVING_ENABLED,
         "endpoints": {
             "auth":            "/auth/register, /auth/login, /auth/me",
-            "inspection_v2":   "POST /inspection/analyze → GET /inspection/status/:id → GET /inspection/result/:id",
-            "inspection_legacy": "/compare, /analyze, /valuation",
+            "aura_v2":         "POST /inspection/analyze → GET /inspection/status/:id → GET /inspection/result/:id",
+            "legacy":          "/compare, /analyze, /valuation",
             "admin":           "/admin/pending, /admin/inspections/pending, /admin/review/frame/:id, /admin/export/yolo/:id",
             "health":          "/health",
             "docs":            "/docs",
@@ -101,11 +102,12 @@ def root():
 @app.get("/health")
 def health_check():
     return {
-        "status":          "ok",
-        "version":         "5.3.0",
-        "embedding_model": CLIP_MODEL_NAME,
-        "damage_model":    DAMAGE_MODEL,
-        "device":          DEVICE.upper(),
+        "status":          "operational",
+        "service":         "AURA CORE",
+        "version":         "1.0.0-MVP",
+        "embedding_node":  CLIP_MODEL_NAME,
+        "anomaly_node":    DAMAGE_MODEL,
+        "compute_unit":    DEVICE.upper(),
         "openai_ready":    bool(OPENAI_API_KEY),
-        "dataset_saving":  DATASET_SAVING_ENABLED,
+        "archiving_ready": DATASET_SAVING_ENABLED,
     }

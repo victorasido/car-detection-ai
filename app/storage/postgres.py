@@ -3,6 +3,7 @@ storage/postgres.py — PostgreSQL with connection pooling
 """
 
 import psycopg2
+import time
 from typing import Optional, List, Dict, Any
 from psycopg2 import pool
 from psycopg2.extras import Json
@@ -140,22 +141,30 @@ CREATE INDEX IF NOT EXISTS idx_insp_results_insp       ON inspection_results(ins
 
 
 def init_db():
-    """Initialize connection pool + create tables."""
+    """Initialize connection pool + create tables with retry logic."""
     global _pool
-    try:
-        _pool = pool.SimpleConnectionPool(minconn=2, maxconn=10, dsn=POSTGRES_DSN)
-        conn = _pool.getconn()
-        with conn.cursor() as cur:
-            cur.execute(INIT_SQL)
-        conn.commit()
-        _pool.putconn(conn)
-        print("[PostgreSQL] Pool initialized + tables ready ✓")
-        
-        # Seed default user
-        seed_default_user()
-    except Exception as e:
-        print(f"[PostgreSQL] Init warning: {e}")
-        _pool = None
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            print(f"[PostgreSQL] Initializing pool (attempt {attempt+1}/{max_retries})...")
+            _pool = pool.ThreadedConnectionPool(minconn=2, maxconn=10, dsn=POSTGRES_DSN)
+            conn = _pool.getconn()
+            with conn.cursor() as cur:
+                cur.execute(INIT_SQL)
+            conn.commit()
+            _pool.putconn(conn)
+            print("[PostgreSQL] Pool initialized + tables ready ✓")
+            
+            # Seed default user
+            seed_default_user()
+            return  # Success, exit function
+        except Exception as e:
+            print(f"[PostgreSQL] Init warning: {e}")
+            _pool = None
+            if attempt < max_retries - 1:
+                time.sleep(3)  # Wait 3 seconds before retrying
+                
+    print("[PostgreSQL] Failed to initialize after multiple attempts. Is the database running?")
 
 
 def seed_default_user():
@@ -391,6 +400,7 @@ def update_inspection_status(
 ) -> bool:
     """Update inspection lifecycle fields (status, timestamps, error, progress)."""
     if not _pool:
+        print(f"[PostgreSQL] ERROR: Database pool not initialized when updating status for {inspection_id}")
         return False
     conn = _pool.getconn()
     try:
@@ -519,6 +529,7 @@ def save_inspection_result(inspection_id: str, report: dict) -> bool:
 def get_inspection_status(inspection_id: str) -> Optional[dict]:
     """Return minimal status fields — for the polling endpoint."""
     if not _pool:
+        print(f"[PostgreSQL] ERROR: Database pool not initialized when fetching status for {inspection_id}")
         return None
     conn = _pool.getconn()
     try:
@@ -656,6 +667,43 @@ def get_inspection_history(
             "page":     page,
             "per_page": per_page,
         }
+    finally:
+        _pool.putconn(conn)
+
+
+def increment_frames_analyzed(inspection_id: str) -> Optional[dict]:
+    """
+    Atomically increment frames_analyzed inside progress_json at the SQL level.
+
+    Returns the UPDATED progress dict so the caller can check if aggregation
+    should be triggered — no Python-level read-modify-write race.
+
+    Uses jsonb_set + RETURNING to do everything in one round-trip.
+    """
+    if not _pool:
+        return None
+    conn = _pool.getconn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE inspections
+                SET progress_json = jsonb_set(
+                    COALESCE(progress_json, '{}'::jsonb),
+                    '{frames_analyzed}',
+                    to_jsonb(
+                        COALESCE((progress_json->>'frames_analyzed')::int, 0) + 1
+                    )
+                )
+                WHERE id = %s
+                RETURNING progress_json
+            """, (inspection_id,))
+            row = cur.fetchone()
+        conn.commit()
+        return row[0] if row else None
+    except Exception as e:
+        print(f"[PostgreSQL] increment_frames_analyzed failed: {e}")
+        conn.rollback()
+        return None
     finally:
         _pool.putconn(conn)
 

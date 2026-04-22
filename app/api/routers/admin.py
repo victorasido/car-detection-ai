@@ -3,6 +3,7 @@ import zipfile
 import textwrap
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.responses import RedirectResponse
 from app.api.schemas import AnnotationIn, FrameReviewIn
 from app.storage.auth import get_current_user
 from app.storage.postgres import (
@@ -71,7 +72,8 @@ async def proxy_inspection_frame(
     url = get_presigned_url(path, expires_in=3600)
     if url is None:
         raise HTTPException(status_code=404, detail="Frame image not found in object store.")
-    return {"url": url}
+    # Redirect the browser to the presigned URL so the <img> tag can fetch it directly.
+    return RedirectResponse(url=url)
 
 
 @router.post("/review/frame/{frame_id}")
@@ -169,8 +171,21 @@ async def export_yolo_dataset(
 
             # Download image bytes from object store
             img_bytes = get_frame_data(frame["frame_path"])
+            
+            img_w, img_h = 1, 1  # Fallback
             if img_bytes:
                 zf.writestr(f"dataset/images/{img_name}.jpg", img_bytes)
+                
+                # Dynamically read image dimensions for YOLO normalization
+                try:
+                    import cv2
+                    import numpy as np
+                    np_arr = np.frombuffer(img_bytes, np.uint8)
+                    cv_img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+                    if cv_img is not None:
+                        img_h, img_w = cv_img.shape[:2]
+                except Exception as e:
+                    print(f"[Admin] Failed to decode image for dims: {e}")
 
             # Build YOLO label file
             label_lines = []
@@ -180,18 +195,24 @@ async def export_yolo_dataset(
                 if class_id is None:
                     continue  # skip unknown labels
 
+                # Bboxes stored as pixel x,y,w,h (top-left corner)
                 # YOLO expects normalized [0,1] cx, cy, w, h
-                # Bboxes stored as pixel x,y,w,h — we need the image dimensions
-                # For now we store raw pixel values; normalization requires image dims.
-                # TODO: store image width+height in inspection_frames to normalize here.
-                x = bbox.get("x", 0)
-                y = bbox.get("y", 0)
-                w = bbox.get("w", 0)
-                h = bbox.get("h", 0)
+                x = float(bbox.get("x", 0))
+                y = float(bbox.get("y", 0))
+                w = float(bbox.get("w", 0))
+                h = float(bbox.get("h", 0))
 
-                # Emit raw pixel coords as a YOLO-like line
-                # (caller must post-process if image dims are needed for normalization)
-                label_lines.append(f"{class_id} {x} {y} {w} {h}")
+                # Safe normalization (avoid division by zero if img decode failed)
+                img_w = max(img_w, 1)
+                img_h = max(img_h, 1)
+
+                cx_norm = (x + w / 2) / img_w
+                cy_norm = (y + h / 2) / img_h
+                w_norm  = w / img_w
+                h_norm  = h / img_h
+
+                # Emit YOLO formatting (class cx cy w h) up to 6 decimals
+                label_lines.append(f"{class_id} {cx_norm:.6f} {cy_norm:.6f} {w_norm:.6f} {h_norm:.6f}")
 
             zf.writestr(
                 f"dataset/labels/{img_name}.txt",

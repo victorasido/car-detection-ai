@@ -49,6 +49,7 @@ services:
     volumes:
       - ./app:/app/app
       - inspection_tmp:/tmp/inspection_uploads
+      - model_cache:/root/.cache
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     depends_on:
       minio:
@@ -61,7 +62,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 120s
 
   # ── Frontend: React + Nginx ───────────────────────────────
   frontend:
@@ -157,7 +158,8 @@ services:
     volumes:
       - ./app:/app/app
       - inspection_tmp:/tmp/inspection_uploads
-    command: ["celery", "-A", "app.inspection.celery_app.celery_app", "worker", "--loglevel=info", "--pool=threads", "--concurrency=4"]
+      - model_cache:/root/.cache
+    command: ["celery", "-A", "app.inspection.celery_app.celery_app", "worker", "--loglevel=info", "--pool=threads", "--concurrency=1"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -197,4 +199,6 @@ volumes:
   redis_data:
     driver: local
   inspection_tmp:
+    driver: local
+  model_cache:
     driver: local
