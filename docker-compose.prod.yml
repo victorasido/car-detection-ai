@@ -27,8 +27,9 @@ services:
     expose:
       - "8000"  # Only exposed to the nginx internal network, NOT to the host
     environment:
-      # ── OpenAI ────────────────────────────────────────────────
+      # ── OpenAI & AI Pipeline ──────────────────────────────────
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANALYSIS_BACKEND=${ANALYSIS_BACKEND}
 
       # ── Database (Managed PostgreSQL) ─────────────────────────
       - POSTGRES_DSN=${POSTGRES_DSN}
@@ -97,6 +98,7 @@ services:
     container_name: vehicleinspect-worker
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANALYSIS_BACKEND=${ANALYSIS_BACKEND}
       - POSTGRES_DSN=${POSTGRES_DSN}
       - STORAGE_PROVIDER=${STORAGE_PROVIDER:-r2}
       - STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}
