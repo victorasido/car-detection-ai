@@ -1,0 +1,79 @@
+# =========================
+# Git and IDEs
+# =========================
+.git/
+.gitignore
+.idea/
+.vscode/
+
+# =========================
+# Environment Variables
+# =========================
+# NOTE: .env.production might be needed if you COPY it during build, 
+# but usually it's passed at runtime via docker-compose --env-file.
+# We'll ignore local env files.
+.env
+.env.local
+.env.development
+.env.test
+
+# =========================
+# Python (Backend Context)
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# =========================
+# Node.js (Frontend & Mobile)
+# =========================
+# If the backend Dockerfile context is `.`, we don't need frontend/mobile stuff in it
+node_modules/
+frontend/node_modules/
+mobile/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# Project Specific Data & Temporary files
+# =========================
+video/
+tmp/
+temp/
+app/training/output/
+*.md
+docs/
+
+# =========================
+# Mobile specific
+# =========================
+mobile/
+.expo/
+*.apk
+*.ipa
+
+# =========================
+# Frontend specific (if backend build context)
+# =========================
+# If building frontend separately, you might want to adjust this, 
+# but for backend build from root context, we don't need frontend dir
+frontend/dist/
+frontend/build/
+
+# =========================
+# Docker files
+# =========================
+docker-compose.yml
+docker-compose.prod.yml
+Dockerfile*
+.dockerignore
