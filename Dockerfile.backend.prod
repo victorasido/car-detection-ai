@@ -40,19 +40,19 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy installed packages from builder
-COPY --from=builder /root/.local /home/appuser/.local
-
-# Create non-root user for security
+# Create non-root user FIRST (before copying into their home dir)
 RUN useradd -m -u 1001 appuser
+
+# Copy installed packages from builder into the existing home dir
+COPY --from=builder /root/.local /home/appuser/.local
 
 WORKDIR /app
 
 # Copy source code
 COPY app/ ./app/
 
-# Set correct ownership
-RUN chown -R appuser:appuser /app
+# Set correct ownership for both app and user packages
+RUN chown -R appuser:appuser /app /home/appuser/.local
 
 USER appuser
 
